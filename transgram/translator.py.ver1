@@ -1,0 +1,62 @@
+##-*- coding: utf-8 -*-
+#from __future__ import absolute_import, division, print_function, unicode_literals
+from parsimonious.grammar import Grammar
+from parsimonious.nodes import NodeVisitor
+
+myrules = (r'''
+    # New notation to express context-free and context-sensitive grammars
+
+    # high-level rules
+    rules           = _ rule*
+    rule            = label expression_attributes? colon expression
+    expression      = firstmatched / ored / sequence / term
+    firstmatched    = term firstmatch_term+
+    ored            = term or_term+
+    sequence        = left? term term+ right? expression_attributes?
+    term            = quantified / atom
+
+    # choice terms
+    firstmatch_term = ("/" _ ored) / ("/" _ term)
+    or_term         = "|" _ term
+
+    # expression attributes
+    expression_attributes = "{" _ expression_name? attribute_items? "}" _
+    expression_name = label colon
+    comma_separated_term = "," _ label
+    attribute_items = label comma_separated_term*
+
+    # primitive terms
+    quantified      = atom quantifier
+    atom            = reference / literal / regex / parenthesized
+    regex           = "~" spaceless_literal ~"[ilmsux]*"i _
+    parenthesized   = "(" _ expression ")" _
+    quantifier      = ~"[*+?]" _
+    reference       = label !colon
+    literal         = spaceless_literal _
+    spaceless_literal = ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is /
+                        ~"u?r?'[^'\\\\]*(?:\\\\.[^'\\\\]*)*'"is
+
+    # primitive items
+    _               = meaninglessness*
+    label           = ~"[a-zA-Z_][a-zA-Z_0-9]*" _
+    meaninglessness = blanks / comment
+    blanks          = ~r"\s+"
+    comment         = "#" ~r"[^\r\n]*"
+    colon           = ":" _
+    left            = "=>" _
+    right           = "<=" _
+''')
+
+class Translate2Parglare(NodeVisitor):
+
+    def generic_visit(self, node, items):
+        #import pdb; pdb.set_trace()
+        pass
+
+    def visit_rules(self, node, items):
+        print(node)
+def translate(text):
+    grammar = Grammar(myrules)
+    #import pdb; pdb.set_trace()
+    parsetree = grammar.parse(text)
+    tree = Translate2Parglare().visit(parsetree)
