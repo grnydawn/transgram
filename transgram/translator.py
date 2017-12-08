@@ -6,7 +6,6 @@ from .nodes import NodeVisitor
 from .expressions import (Literal, Regex, Not, ZeroOrMore,
     OneOrMore, Optional, Sequence, OneOf)
 from .lego import parse as lego_parse, lego, mult, qm, plus, star, reduce_after, call_fsm
-import random
 
 new_notation = (r'''
     # New notation to express context-free and context-sensitive grammars
@@ -83,17 +82,7 @@ class Sampler(NodeVisitor):
         # each generator may return a list??
         self.rules = {}
 
-    def _oneof(self, *rules):
-        # return generator
-
-    def _firstmatchof(self, *rules):
-        # return generator
-
-    def _sequence(self, *rules):
-        # return generator
-
-    def _optional(self, *rules):
-        # return generator
+        # visit_XXXX: collect legos
 
     def generic_visit(self, node, items):
         print("GV", node.expr)
@@ -202,10 +191,33 @@ class Sampler(NodeVisitor):
     def visit_rule(self, node, items):
         import pdb; pdb.set_trace()
 
+
+    # from https://bugs.python.org/issue10109
+    def product(self, *iters, **kwargs):
+        otherchar = kwargs.get('otherchar', None)
+        inf_iters = tuple(itertools.cycle(enumerate(
+            it.strings(otherchar=otherchar))) for it in iters)
+        num_iters = len(inf_iters)
+        cur_val = [None for _ in xrange(num_iters)]
+
+        first_v = True
+        while True:
+            i, p = 0, num_iters
+            while p and not i:
+                p -= 1
+                i, cur_val[p] = inf_iters[p].next()
+
+            if not p and not i:
+                if first_v:
+                    first_v = False
+                else:
+                    break
+
+            yield tuple(cur_val)
+
     def visit_rules(self, node, items):
-        import pdb; pdb.set_trace()
-        #print(node)
-        pass
+        for words in self.product(items, otherchar="_otherchar_"):
+            yield ''.join(words)
 
 #class Translate2Parglare(NodeVisitor):
 #
