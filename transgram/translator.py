@@ -1,11 +1,11 @@
 ##-*- coding: utf-8 -*-
 #from __future__ import absolute_import, division, print_function, unicode_literals
-import functools
+import itertools
 from .grammar import Grammar
 from .nodes import NodeVisitor
 from .expressions import (Literal, Regex, Not, ZeroOrMore,
     OneOrMore, Optional, Sequence, OneOf)
-from .lego import parse as lego_parse, lego, mult, qm, plus, star, reduce_after, call_fsm
+from .lego import parse as lego_parse, pattern
 
 new_notation = (r'''
     # New notation to express context-free and context-sensitive grammars
@@ -60,137 +60,18 @@ new_notation = (r'''
     right           = "<=" _
 ''')
 
-schars = [".", "^", "$", "*", "+", "?", "{", "}", "[", "]", "|", "(", ")", "\\"]
+schars = ["\\", ".", "^", "$", "*", "+", "?", "{", "}", "[", "]", "|", "(", ")"]
 DEBUG = False
 
+class Article(object):
 
-class Sampler(NodeVisitor):
+    def __init__(self, structure):
+        self.structure = structure
+        #self.generator = self.product(*self.structure, otherchar="_otherchar_")
 
-
-    def __init__(self):
-        ''' string: string, listgenerator: generator,
-            set: one of, tuple: firstmatch of, list: sequence
-        '''
-
-        # contains all the rules
-        # rule_name: rule_handler
-        # rule_handler type matches with ...
-        # usage: user picks a rule and execute sample function
-        # a rule maintains state for generation of string
-        # a rule handler may use multiple another rule handlers
-        # generators for each rules
-        # each generator may return a list??
-        self.rules = {}
-
-        # visit_XXXX: collect legos
-
-    def generic_visit(self, node, items):
-        print("GV", node.expr)
-
-    def visit_attribute_name(self, node, items):
-        import pdb; pdb.set_trace()
-        return items[0]
-
-    def visit_attribute_items(self, node, items):
-        import pdb; pdb.set_trace()
-        return [items[0], [items[1]]+items[2]]
-
-    def visit_comma_separated_term(self, node, items):
-        import pdb; pdb.set_trace()
-        return items[1]
-
-    def visit_semicolon_separated_part(self, node, items):
-        import pdb; pdb.set_trace()
-        return items[1]
-
-    def visit_attribute_parts(self, node, items):
-        import pdb; pdb.set_trace()
-        return [items[0]]+items[1]
-
-    def visit_expression_attributes_angle(self, node, items):
-        import pdb; pdb.set_trace()
-        return items[2]
-
-    def visit_firstmatch_term(self, node, items):
-        import pdb; pdb.set_trace()
-
-    def visit_firstmatched(self, node, items):
-        import pdb; pdb.set_trace()
-
-    def visit_or_term(self, node, items):
-        import pdb; pdb.set_trace()
-        return items[2]
-
-    def visit_ored(self, node, items):
-        import pdb; pdb.set_trace()
-        return [items[0]]+items[1]
-
-    def visit_left(self, node, items):
-        import pdb; pdb.set_trace()
-        return True if items[0] else None
-
-    def visit_right(self, node, items):
-        import pdb; pdb.set_trace()
-        return True if items[0] else None
-
-    def visit_expression_attributes_brace(self, node, items):
-        import pdb; pdb.set_trace()
-        return items[2]
-
-    def visit_sequence(self, node, items):
-        import pdb; pdb.set_trace()
-
-    def visit_quantified(self, node, items):
-        import pdb; pdb.set_trace()
-
-    def visit_spaceless_literal(self, node, items):
-        import pdb; pdb.set_trace()
-        return items[0]
-
-    def visit_blanks(self, node, items):
-        ch = ''
-        if node.text:
-            ch = '\n' if node.text.find('\n')>=0 else ' '
-        self.rules['blanks'] = iter([ch for n in range(1000)])
-
-    def visit_comment(self, node, items):
-        self.rules['comment'] = iter(['#CMT%d'%n for n in range(100)])
-
-    def visit_meaninglessness(self, node, items):
-        self.rules['meaninglessness'] = ('blanks', 'comment')
-
-    def visit__(self, node, items):
-        self.rules['_'] = ['meaninglessness', '*']
-
-    def visit_literal(self, node, items):
-        import pdb; pdb.set_trace()
-        return items[0]
-
-    def visit_quantifier(self, node, items):
-        import pdb; pdb.set_trace()
-
-    def visit_regex(self, node, items):
-        import pdb; pdb.set_trace()
-
-    def visit_parenthesized(self, node, items):
-        import pdb; pdb.set_trace()
-        return items[2]
-
-    def visit_atom(self, node, items):
-        import pdb ;pdb.set_trace()
-        return self.reduce(items, "+")
-
-    def visit_term(self, node, items):
-        import pdb ;pdb.set_trace()
-        return self.reduce(items, "+")
-
-    def visit_expression(self, node, items):
-        import pdb ;pdb.set_trace()
-        return self.reduce(items, "+")
-
-    def visit_rule(self, node, items):
-        import pdb; pdb.set_trace()
-
+    def sentences(self):
+        for s in self.product(*self.structure, otherchar="_otherchar_"):
+            yield s
 
     # from https://bugs.python.org/issue10109
     def product(self, *iters, **kwargs):
@@ -198,14 +79,15 @@ class Sampler(NodeVisitor):
         inf_iters = tuple(itertools.cycle(enumerate(
             it.strings(otherchar=otherchar))) for it in iters)
         num_iters = len(inf_iters)
-        cur_val = [None for _ in xrange(num_iters)]
+        cur_val = [None for _ in range(num_iters)]
 
         first_v = True
         while True:
             i, p = 0, num_iters
             while p and not i:
                 p -= 1
-                i, cur_val[p] = inf_iters[p].next()
+                #i, cur_val[p] = inf_iters[p].next()
+                i, cur_val[p] = next(inf_iters[p])
 
             if not p and not i:
                 if first_v:
@@ -215,129 +97,138 @@ class Sampler(NodeVisitor):
 
             yield tuple(cur_val)
 
-    def visit_rules(self, node, items):
-        for words in self.product(items, otherchar="_otherchar_"):
-            yield ''.join(words)
+class Sampler(NodeVisitor):
 
-#class Translate2Parglare(NodeVisitor):
-#
-#    def generic_visit(self, node, items):
-#        if not node.expr.name:
-#            if isinstance(node.expr, (Literal, Regex)):
-#                return node.text
-#            elif isinstance(node.expr, Optional):
-#                return items[0] if items else None
-#            elif isinstance(node.expr, (ZeroOrMore, OneOrMore,
-#                Sequence)):
-#                return items
-#
-#    def visit_comma(self, node, items):
-#        return items[0]
-#
-#    def visit_colon(self, node, items):
-#        return items[0]
-#
-#    def visit_label(self, node, items):
-#        import pdb; pdb.set_trace()
-#        return items[0]
-#
-#    def visit_attribute_name(self, node, items):
-#        import pdb; pdb.set_trace()
-#        return items[0]
-#
-#    def visit_attribute_items(self, node, items):
-#        return [items[0], [items[1]]+items[2]]
-#
-#    def visit_comma_separated_term(self, node, items):
-#        return items[1]
-#
-#    def visit_semicolon_separated_part(self, node, items):
-#        return items[1]
-#
-#    def visit_attribute_parts(self, node, items):
-#        return [items[0]]+items[1]
-#
-#    def visit_expression_attributes_angle(self, node, items):
-#        return items[2]
-#
-#    def visit_firstmatch_term(self, node, items):
-#        import pdb; pdb.set_trace()
-#
-#    def visit_firstmatched(self, node, items):
-#        import pdb; pdb.set_trace()
-#
-#    def visit_or_term(self, node, items):
-#        return items[2]
-#
-#    def visit_ored(self, node, items):
-#        return [items[0]]+items[1]
-#
-#    def visit_left(self, node, items):
-#        return True if items[0] else None
-#
-#    def visit_right(self, node, items):
-#        return True if items[0] else None
-#
-#    def visit_expression_attributes_brace(self, node, items):
-#        return items[2]
-#
-#    def visit_sequence(self, node, items):
-#        return [items[0], [items[1]]+items[2], items[3], items[4]]
-#
-#    def visit_quantified(self, node, items):
-#        import pdb; pdb.set_trace()
-#
-#    def visit_reference(self, node, items):
-#        return items[0]
-#
-#    def visit_spaceless_literal(self, node, items):
-#        return items[0]
-#
-#    def visit_blanks(self, node, items):
-#        return items[0] if items else None
-#
-#    def visit_comment(self, node, items):
-#        return items[1]
-#
-#    def visit_meaninglessness(self, node, items):
-#        return items[0]
-#
-#    def visit__(self, node, items):
-#        return [item for item in items if item]
-#
-#    def visit_literal(self, node, items):
-#        return items[0]
-#
-#    def visit_quantifier(self, node, items):
-#        import pdb; pdb.set_trace()
-#
-#    def visit_regex(self, node, items):
-#        import pdb; pdb.set_trace()
-#
-#    def visit_parenthesized(self, node, items):
-#        return items[2]
-#
-#    def visit_atom(self, node, items):
-#        return items[0]
-#
-#    def visit_term(self, node, items):
-#        return items[0]
-#
-#    def visit_expression(self, node, items):
-#        return items[0]
-#
-#    def visit_rule(self, node, items):
-#        import pdb; pdb.set_trace()
-#
-#    def visit_rules(self, node, items):
-#        import pdb; pdb.set_trace()
-#        #print(node)
-#        pass
+    class Internal(object):
+        pass
+
+    class Reference(Internal):
+        def __init__(self, ref):
+            self.name = ref
+
+    class Label(Internal):
+        def __init__(self, label):
+            self.name = label
+
+    class Attribute(Internal):
+        pass
+
+    class AngleAttribute(Attribute):
+        pass
+
+    class BraceAttribute(Attribute):
+        pass
+
+    class FirstmatchOf(Internal):
+        # as generator
+        def __init__(self, node, items):
+            self.node = node
+            self.items = items
+
+    class AnymatchOf(Internal):
+        # as generator
+        def __init__(self, node, items):
+            self.node = node
+            self.items = items
+
+    def __init__(self):
+        self.rules = {}
+
+    def _escape(self, string):
+        for schar in schars:
+            string = string.replace(schar, '\\'+schar)
+        return string
+
+    def _literal(self, node, items):
+        return [lego_parse(self._escape(node.text))]
+
+    def _regex(self, node, items):
+        return [lego_parse(node.expr.re.pattern)]
+
+    def _sequence(self, node, items):
+        l = []
+        for item in items:
+            l.extend(item)
+        return l
+
+    def _optional(self, node, items):
+        return items[0] if items else items
+
+    def _oneof(self, node, items):
+        assert len(items) == 1
+        return items[0]
+
+    def _zeroormore(self, node, items):
+        return self._sequence(node, items)
+
+    def _oneormore(self, node, items):
+        return self._sequence(node, items)
+
+    def _not(self, node, items):
+        return []
+
+    def generic_visit(self, node, items):
+        clsname = node.expr.__class__.__name__.lower()
+        return getattr(self, '_'+clsname)(node, items)
+
+    def visit_label(self, node, items):
+        return [self.Label(node.text.strip())]
+
+    def visit_reference(self, node, items):
+        return [self.Reference(node.text.strip())]
+
+    def visit_regex(self, node, items):
+        return [lego_parse(eval(node.children[1].text))]
+
+    def visit_literal(self, node, items):
+        return [lego_parse(eval(self._escape(node.children[0].text)))]
+
+    def visit_parenthesized(self, node, items):
+        return items[2]
+
+    def visit_blanks(self, node, items):
+        ch = ''
+        if node.text:
+            ch = r'\n' if node.text.find('\n')>=0 else r' '
+        if ch:
+            return [lego_parse(ch)]
+        else:
+            return []
+
+    def visit_comment(self, node, items):
+        return []
+
+    def visit_firstmathced(self, node, items):
+        return [self.FirstmatchOf(node, items)]
+
+    def visit_ored(self, node, items):
+        return [self.AnymatchOf(node, items)]
+
+    def visit_rule(self, node, items):
+        rulename = items[0][0].name
+        self.rules[rulename] = items[3]
+        return [(rulename, node.start)]
+
+    def visit_rules(self, node, items):
+        start_rule = items[1][0][0]
+        return Article(self._get_rule(self.rules[start_rule]))
+
+    def _get_rule(self, rule):
+        generators = []
+        for item in rule:
+            if isinstance(item, pattern):
+                generators.append(item)
+            elif isinstance(item, self.Reference):
+                generators.extend(self.rules[item.name])
+            else:
+                import pdb; pdb.set_trace()
+        return generators
 
 def translate(custom_grammar):
     new_syntax = Grammar(new_notation)
     grammar_tree = new_syntax.parse(custom_grammar)
     sampler = Sampler().visit(grammar_tree)
+    [print(''.join(s)) for s in sampler.sentences()]
     import pdb; pdb.set_trace()
     #cgrammar = CanonicalGrammar().visit(parsetree)
     #parglare_grammar = translate_to_parglare(cgrammar)
