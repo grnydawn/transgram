@@ -70,14 +70,18 @@ class Article(object):
         #self.generator = self.product(*self.structure, otherchar="_otherchar_")
 
     def sentences(self):
-        for s in self.product(*self.structure, otherchar="_otherchar_"):
-            yield s
+        # generate structures
+        # sort by some ways
+        # get one by one
+        for struct in self.structure:
+            for s in self.product(*struct, otherchar="_otherchar_"):
+                yield s
 
     # from https://bugs.python.org/issue10109
     def product(self, *iters, **kwargs):
         otherchar = kwargs.get('otherchar', None)
         inf_iters = tuple(itertools.cycle(enumerate(
-            it.strings(otherchar=otherchar))) for it in iters)
+            it)) for it in iters)
         num_iters = len(inf_iters)
         cur_val = [None for _ in range(num_iters)]
 
@@ -97,39 +101,43 @@ class Article(object):
 
             yield tuple(cur_val)
 
+
+###### internal classes #####
+
+class Internal(object):
+    pass
+
+class Reference(Internal):
+    def __init__(self, ref):
+        self.name = ref
+
+class Label(Internal):
+    def __init__(self, label):
+        self.name = label
+
+class Attribute(Internal):
+    pass
+
+class AngleAttribute(Attribute):
+    pass
+
+class BraceAttribute(Attribute):
+    pass
+
+class Iterator(Internal):
+    # as generator
+    def __init__(self, node, items):
+        self.node = node
+        self.items = items
+
+class FirstmatchOf(Iterator):
+    pass
+
+class AnymatchOf(Iterator):
+    pass
+
+##### sampler
 class Sampler(NodeVisitor):
-
-    class Internal(object):
-        pass
-
-    class Reference(Internal):
-        def __init__(self, ref):
-            self.name = ref
-
-    class Label(Internal):
-        def __init__(self, label):
-            self.name = label
-
-    class Attribute(Internal):
-        pass
-
-    class AngleAttribute(Attribute):
-        pass
-
-    class BraceAttribute(Attribute):
-        pass
-
-    class FirstmatchOf(Internal):
-        # as generator
-        def __init__(self, node, items):
-            self.node = node
-            self.items = items
-
-    class AnymatchOf(Internal):
-        # as generator
-        def __init__(self, node, items):
-            self.node = node
-            self.items = items
 
     def __init__(self):
         self.rules = {}
@@ -172,10 +180,10 @@ class Sampler(NodeVisitor):
         return getattr(self, '_'+clsname)(node, items)
 
     def visit_label(self, node, items):
-        return [self.Label(node.text.strip())]
+        return [Label(node.text.strip())]
 
     def visit_reference(self, node, items):
-        return [self.Reference(node.text.strip())]
+        return [Reference(node.text.strip())]
 
     def visit_regex(self, node, items):
         return [lego_parse(eval(node.children[1].text))]
@@ -198,11 +206,17 @@ class Sampler(NodeVisitor):
     def visit_comment(self, node, items):
         return []
 
-    def visit_firstmathced(self, node, items):
-        return [self.FirstmatchOf(node, items)]
+    def visit_firstmatched(self, node, items):
+        return [FirstmatchOf(node, items)]
+
+    def visit_firstmatch_term(self, node, items):
+        return items[0][2:]
 
     def visit_ored(self, node, items):
-        return [self.AnymatchOf(node, items)]
+        return [AnymatchOf(node, items)]
+
+    def visit_or_term(self, node, items):
+        return items[0][2:]
 
     def visit_rule(self, node, items):
         rulename = items[0][0].name
@@ -211,24 +225,89 @@ class Sampler(NodeVisitor):
 
     def visit_rules(self, node, items):
         start_rule = items[1][0][0]
-        return Article(self._get_rule(self.rules[start_rule]))
+        generators = self.Generator(self.rules, start_rule)
+        return Article(generators)
 
-    def _get_rule(self, rule):
-        generators = []
-        for item in rule:
-            if isinstance(item, pattern):
-                generators.append(item)
-            elif isinstance(item, self.Reference):
-                generators.extend(self.rules[item.name])
+    class Generator(object):
+        def __init__(self, rules, start_rule, maxloops=3):
+            self.rules = dict(rules)
+            self.start_rule = start_rule
+            self.maxloops = maxloops
+
+        def __iter__(self):
+            for gen in self._get_generators(self.start_rule):
+                yield gen
+
+        def _get_generators(self, rulename, path={}):
+
+            generators = [[]]
+
+            def _productextend(*items):
+                retval = []
+                for gen in items[0]:
+                    if len(items)>1:
+                        for item in _productextend(*items[1:]):
+                            retval.append(gen+item)
+                    else:
+                        retval.append(gen)
+                return retval
+
+            if rulename in path:
+                path[rulename] -= 1
             else:
-                import pdb; pdb.set_trace()
-        return generators
+                path[rulename] = self.maxloops
+
+            print("BB", rulename, path)
+            #import pdb; pdb.set_trace()
+#            # handling attributes
+#            for item in self.rules[rulename]:
+#                if isinstance(item, self.Attribute):
+#                    # common attribute handling
+#                    if isinstance(item, self.AngleAttribute):
+#                        # angle attribute handling
+#                        import pdb; pdb.set_trace()
+#                    elif isinstance(item, self.BraceAttribute):
+#                        # barce attribute handling
+#                        import pdb; pdb.set_trace()
+
+            # generate structure for this rule
+            for item in self.rules[rulename]:
+                if isinstance(item, pattern):
+                    generators = _productextend(generators, [[item.strings(otherchar="_OTHER_")]])
+                elif isinstance(item, Reference):
+                    # depth handling
+                    if path[rulename] == self.maxloops:
+                        gens = []
+                        for nloops in range(self.maxloops):
+                            newpath = dict(path)
+                            newpath[rulename] = nloops
+                            gens.append(self._get_generators(item.name, path=newpath))
+                        generators = _productextend(generators, *gens)
+                    elif path[rulename] > 0:
+                        generators = _productextend(self._get_generators(item.name, path=path))
+                elif isinstance(item, FirstmatchOf):
+                    if path[rulename] > 0:
+                        gens = []
+                        for _item in item.items:
+                            itemid = str(sum([id(o) for o in _item]))
+                            if itemid not in self.rules:
+                                self.rules[itemid] = _item
+                            newpath = dict(path)
+                            gens.append(self._get_generators(itemid, path=newpath))
+                        generators = _productextend(generators, *gens)
+                else:
+                    import pdb; pdb.set_trace()
+            #print("CC", rulename, path, generators)
+            #import pdb; pdb.set_trace()
+            return generators
 
 def translate(custom_grammar):
     new_syntax = Grammar(new_notation)
     grammar_tree = new_syntax.parse(custom_grammar)
     sampler = Sampler().visit(grammar_tree)
-    [print(''.join(s)) for s in sampler.sentences()]
+    for idx, s in enumerate(sampler.sentences()):
+        if idx ==3: break
+        print(''.join(s))
     import pdb; pdb.set_trace()
     #cgrammar = CanonicalGrammar().visit(parsetree)
     #parglare_grammar = translate_to_parglare(cgrammar)
