@@ -276,7 +276,7 @@ class Sampler(NodeVisitor):
                     return items[0]
                 return temp
 
-            print("AA", rulename, path)
+            #print("AA", rulename, path)
 
             #import pdb; pdb.set_trace()
 #            # handling attributes
@@ -292,21 +292,20 @@ class Sampler(NodeVisitor):
 
             # generate structure for this rule
             for item in self.rules[rulename]:
+                #print("BB", item)
                 if isinstance(item, pattern):
                     generators = _productextend(generators, [[item.copy()]])
+                    #print("CC", generators)
                 elif isinstance(item, LiteralString):
                     generators = _productextend(generators, [[item.copy()]])
+                    #print("DD", generators)
                 elif isinstance(item, Reference):
                     subgen = self._get_generators(item.name, path=path)
-                    #if subgen:
                     generators = _productextend(generators, subgen)
-                    generators = _trimgenerators(generators)
+                    #print("EE", generators)
                 elif isinstance(item, FirstmatchOf):
-                    gens = [generators]
+                    itemgens = []
                     for _item in item.items:
-
-                        itemgens = []
-
                         itemid = str(sum([id(o) for o in _item]))
                         if itemid not in self.rules:
                             self.rules[itemid] = _item
@@ -315,8 +314,14 @@ class Sampler(NodeVisitor):
                             path[itemid] = self.maxloops
 
                         if path[itemid] == self.maxloops:
+#                            for nloops in range(self.maxloops):
+#                                newpath = dict(path)
+#                                newpath[itemid] = nloops
+#                                subgen = self._get_generators(itemid, path=newpath)
+#                                itemgens.append(subgen)
+
                             newpath = dict(path)
-                            newpath[itemid] -= 1
+                            newpath[itemid] = self.maxloops - 1
                             subgen = self._get_generators(itemid, path=newpath)
                             itemgens.append(subgen)
                         elif path[itemid] > 0:
@@ -325,17 +330,18 @@ class Sampler(NodeVisitor):
                             itemgens.append(subgen)
                         else:
                             itemgens.append([None])
-                        gens.append(itemgens)
-                    import pdb; pdb.set_trace()
-                    generators = _productextend(*gens)
-                    generators = _trimgenerators(generators)
+                    itemgens = _trimgenerators(itemgens)
+                    #import pdb; pdb.set_trace()
+                    #for itemgen in itemgens:
+                    #    generators = _productextend(generators, itemgen)
+                    generators = _productextend(generators, *itemgens)
                 else:
                     import pdb; pdb.set_trace()
-            print("CC1", rulename, path, generators)
+            #print("CC1", rulename, path, generators)
             #print("CC", rulename, len(generators))
             #import pdb; pdb.set_trace()
             generators = _trimgenerators(generators)
-            print("CC2", rulename, path, generators)
+            #print("CC2", rulename, path, generators)
             return generators
 
 def translate(custom_grammar):
