@@ -111,6 +111,9 @@ class Reference(Internal):
     def __init__(self, ref):
         self.name = ref
 
+    def __str__(self):
+        return '"%s"'%self.name
+
 class Label(Internal):
     def __init__(self, label):
         self.name = label
@@ -125,6 +128,9 @@ class LiteralString(Internal):
 
     def copy(self):
         return self.__class__(self.string)
+
+    def __str__(self):
+        return '"%s"'%self.string
 
 class Attribute(Internal):
     pass
@@ -214,10 +220,10 @@ class Sampler(NodeVisitor):
         return []
 
     def visit_firstmatched(self, node, items):
-        return [FirstmatchOf(node, items)]
+        return [FirstmatchOf(node, [items[0]]+items[1])]
 
     def visit_firstmatch_term(self, node, items):
-        return items[0][2:]
+        return [items[0][2:]]
 
     def visit_ored(self, node, items):
         return [AnymatchOf(node, items)]
@@ -294,38 +300,42 @@ class Sampler(NodeVisitor):
                     subgen = self._get_generators(item.name, path=path)
                     #if subgen:
                     generators = _productextend(generators, subgen)
+                    generators = _trimgenerators(generators)
                 elif isinstance(item, FirstmatchOf):
                     gens = [generators]
                     for _item in item.items:
-                        itemid = str(sum([id(o) for o in _item]))
 
+                        itemgens = []
+
+                        itemid = str(sum([id(o) for o in _item]))
                         if itemid not in self.rules:
                             self.rules[itemid] = _item
 
-                        if rulename in path:
-                            path[rulename] -= 1
-                        else:
-                            path[rulename] = self.maxloops
+                        if itemid not in path:
+                            path[itemid] = self.maxloops
 
-                        if path[rulename] == self.maxloops:
-                            for nloops in range(self.maxloops):
-                                newpath = dict(path)
-                                newpath[rulename] = nloops + 1
-                                subgen = self._get_generators(itemid, path=newpath)
-                                gens.append(subgen)
-                        elif path[rulename] == self.maxloops:
-                            subgen = self._get_generators(itemid, path=dict(path))
-                            gens.append(subgen)
+                        if path[itemid] == self.maxloops:
+                            newpath = dict(path)
+                            newpath[itemid] -= 1
+                            subgen = self._get_generators(itemid, path=newpath)
+                            itemgens.append(subgen)
+                        elif path[itemid] > 0:
+                            path[itemid] -= 1
+                            subgen = self._get_generators(itemid, path=path)
+                            itemgens.append(subgen)
                         else:
-                            return [[None]]
+                            itemgens.append([None])
+                        gens.append(itemgens)
+                    import pdb; pdb.set_trace()
                     generators = _productextend(*gens)
+                    generators = _trimgenerators(generators)
                 else:
                     import pdb; pdb.set_trace()
             print("CC1", rulename, path, generators)
             #print("CC", rulename, len(generators))
             #import pdb; pdb.set_trace()
-            #generators = _trimgenerators(generators)
-            #print("CC2", rulename, path, generators)
+            generators = _trimgenerators(generators)
+            print("CC2", rulename, path, generators)
             return generators
 
 def translate(custom_grammar):
