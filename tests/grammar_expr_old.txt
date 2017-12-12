@@ -1,0 +1,6 @@
+E : (E "*" E) / (E "+" E) / ("(" E ")") / NUM
+NUM : ~"(1|2)"
+#NUM : ~"\d{1}"
+#E : (=> E "*" E) / (=>E "+" E {sdf,.sdf.sdf.test}) |  (E "**" E <= {action: (dfsd, dfsf), filter:fsd, action:sdfsd}) | T / A / B
+#E<name :E1; dsfs,sdd,fsd,fds> : (=> E "*" E) / (=>E "+" E {name: plus; filter: test2,sdf,dfsfd,sdfsd,dsf}) | (E "**" E <= {test3, test2, test1} ) | T / A / B
+

@@ -1,6 +1,6 @@
 ##-*- coding: utf-8 -*-
 #from __future__ import absolute_import, division, print_function, unicode_literals
-import itertools, re, functools
+import itertools
 from .grammar import Grammar
 from .nodes import NodeVisitor
 from .expressions import (Literal, Regex, Not, ZeroOrMore,
@@ -115,14 +115,6 @@ class Label(Internal):
     def __init__(self, label):
         self.name = label
 
-class LiteralString(Internal):
-    def __init__(self, string):
-        self.string = string
-
-    def strings(self):
-        yield self.string
-        return
-
 class Attribute(Internal):
     pass
 
@@ -151,17 +143,12 @@ class Sampler(NodeVisitor):
         self.rules = {}
 
     def _escape(self, string):
-        print("XX", string)
         for schar in schars:
-            string = string.replace(schar, "\\"+schar)
-        print("YY", string)
-        #import pdb; pdb.set_trace()
-        #return re.escape(string)
+            string = string.replace(schar, '\\'+schar)
         return string
 
     def _literal(self, node, items):
-        #return [lego_parse(self._escape(node.text))]
-        return [LiteralString(node.text)]
+        return [lego_parse(self._escape(node.text))]
 
     def _regex(self, node, items):
         return [lego_parse(node.expr.re.pattern)]
@@ -202,8 +189,7 @@ class Sampler(NodeVisitor):
         return [lego_parse(eval(node.children[1].text))]
 
     def visit_literal(self, node, items):
-        #return [lego_parse(eval(self._escape(node.children[0].text)))]
-        return [LiteralString(eval(node.children[0].text))]
+        return [lego_parse(eval(self._escape(node.children[0].text)))]
 
     def visit_parenthesized(self, node, items):
         return items[2]
@@ -257,27 +243,22 @@ class Sampler(NodeVisitor):
             generators = [[]]
 
             def _productextend(*items):
-#                temp = []
-#                for gen in items[0]:
-#                    if len(items)>1:
-#                        for item in _productextend(*items[1:]):
-#                            import pdb; pdb.set_trace()
-#                            temp.append(gen+item)
-#                    else:
-#                        temp.append(gen)
-#                return temp
+                retval = []
+                for gen in items[0]:
+                    if len(items)>1:
+                        for item in _productextend(*items[1:]):
+                            retval.append(gen+item)
+                    else:
+                        retval.append(gen)
+                return retval
 
-                if len(items)>1:
-                    temp = []
-                    for item in itertools.product(items[0], _productextend(*items[1:])):
-                        temp.append(functools.reduce(lambda x,y: x+y, item))
-                else:
-                    return items[0]
-                return temp
+            if rulename in path:
+                path[rulename] -= 1
+            else:
+                path[rulename] = self.maxloops
 
             print("BB", rulename, path)
-
-            #import pdb; pdb.set_trace()
+            import pdb; pdb.set_trace()
 #            # handling attributes
 #            for item in self.rules[rulename]:
 #                if isinstance(item, self.Attribute):
@@ -293,18 +274,24 @@ class Sampler(NodeVisitor):
             for item in self.rules[rulename]:
                 if isinstance(item, pattern):
                     generators = _productextend(generators, [[item.strings(otherchar="_OTHER_")]])
-                elif isinstance(item, LiteralString):
-                    generators = _productextend(generators, [[item.strings()]])
                 elif isinstance(item, Reference):
-                    subgens = self._get_generators(item.name, path=path)
-                    if subgens:
-                        generators = _productextend(generators, subgens)
-                elif isinstance(item, FirstmatchOf):
-                    if rulename in path:
-                        path[rulename] -= 1
+                    # depth handling
+                    if path[rulename] == self.maxloops:
+                        gens = []
+                        for nloops in range(self.maxloops):
+                            newpath = dict(path)
+                            newpath[rulename] = nloops + 1
+                            retval = self._get_generators(item.name, path=newpath)
+                            if retval:
+                                gens.append(retval)
+                        generators = _productextend(generators, *gens)
+                    elif path[rulename] > 0:
+                        retval = self._get_generators(item.name, path=path)
+                        if retval:
+                            generators = _productextend(retval)
                     else:
-                        path[rulename] = self.maxloops
-
+                        return None
+                elif isinstance(item, FirstmatchOf):
                     if path[rulename] > 0:
                         gens = []
                         for _item in item.items:
@@ -312,16 +299,10 @@ class Sampler(NodeVisitor):
                             if itemid not in self.rules:
                                 self.rules[itemid] = _item
                             newpath = dict(path)
-                            subgens = self._get_generators(itemid, path=newpath)
-                            if subgens:
-                                gens.append(subgens)
-                        print("XX", generators)
-                        #generators = _productextend(generators, *gens)
-                        temp = []
-                        for g in gens:
-                            temp.extend(_productextend(generators, g))
-                        import pdb; pdb.set_trace()
-                        generators = temp
+                            retval = self._get_generators(itemid, path=newpath)
+                            if retval:
+                                gens.append(retval)
+                        generators = _productextend(generators, *gens)
                     else:
                         return None
                 else:
@@ -335,9 +316,8 @@ def translate(custom_grammar):
     grammar_tree = new_syntax.parse(custom_grammar)
     sampler = Sampler().visit(grammar_tree)
     for idx, s in enumerate(sampler.sentences()):
-        #if idx ==3: break
+        if idx ==3: break
         print(''.join(s))
-        import pdb; pdb.set_trace()
     #import pdb; pdb.set_trace()
     #cgrammar = CanonicalGrammar().visit(parsetree)
     #parglare_grammar = translate_to_parglare(cgrammar)

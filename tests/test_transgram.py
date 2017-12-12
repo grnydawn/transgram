@@ -2,6 +2,7 @@ from context import transgram
 import unittest, sys, os
 
 here = os.path.dirname(os.path.realpath(__file__))
+#grammar_test = 'boldtext'
 grammar_test = 'expr'
 #grammar_test = 'simple'
 grammar_rules = os.path.join(here, 'grammar_%s.txt'%grammar_test)
