@@ -6,6 +6,9 @@ test:
 	cd tests && rm -f *.log
 	cd tests && python${PY} -m unittest test_transgram
 
+temp:
+	cd tests && python${PY} -m unittest test_productextend
+
 install:
 	python${PY} setup.py install --user --record installed_files.txt
 
