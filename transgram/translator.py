@@ -1,6 +1,6 @@
 ##-*- coding: utf-8 -*-
 #from __future__ import absolute_import, division, print_function, unicode_literals
-import itertools, re, functools, types, math
+import itertools, re, functools, types, math, random
 from .grammar import Grammar
 from .nodes import NodeVisitor
 from .lego import parse as lego_parse, pattern
@@ -259,10 +259,10 @@ class Sampler(NodeVisitor):
         return [items[0][2:]]
 
     def visit_ored(self, node, items):
-        return [AnymatchOf(node, items)]
+        return [AnymatchOf(node, [items[0]]+items[1])]
 
     def visit_or_term(self, node, items):
-        return items[0][2:]
+        return [items[2]]
 
     def visit_rule(self, node, items):
         rulename = items[0][0].name
@@ -278,7 +278,7 @@ class Sampler(NodeVisitor):
 DEBUG = False
 
 class Generator(object):
-    def __init__(self, rules, start_rule, maxloops=3, maxrepeats=3):
+    def __init__(self, rules, start_rule, maxloops=6, maxrepeats=2):
         self.rules = dict(rules)
         self.start_rule = start_rule
         self.maxloops = maxloops
@@ -319,6 +319,17 @@ class Generator(object):
                         bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                         start_rules.append(start_rule_stack[:]+_pair+bucket_copy)
                     start_rule_stack.extend([(path,i) for i in item.items[0]])
+                elif isinstance(item, AnymatchOf):
+                    if DEBUG: print("AnymatchOf", )
+                    shuffled = item.items[:]
+                    random.shuffle(shuffled)
+                    for _i in shuffled[1:]:
+                        if DEBUG: print("_Item", _i)
+                        _pair = [(path, p) for p in _i]
+                        bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
+                        start_rules.append(start_rule_stack[:]+_pair+bucket_copy)
+                    start_rule_stack.extend([(path,i) for i in shuffled[0]])
+
                 elif isinstance(item, Optional):
                     if DEBUG: print("Optional", item)
                     bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
