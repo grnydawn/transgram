@@ -285,61 +285,70 @@ class Generator(object):
         self.maxrepeats = maxrepeats
 
     def generate(self):
-        start_rules = [self.rules[self.start_rule][:]]
+        start_rules = [[({self.start_rule:self.maxloops}, r) for r in self.rules[self.start_rule]]]
         while start_rules:
             if DEBUG: print("Rules", start_rules)
             start_rule_stack = start_rules.pop()
             bucket = []
             while start_rule_stack:
                 if DEBUG: print("Stack", start_rule_stack)
-                item = start_rule_stack.pop()
+                path, item = start_rule_stack.pop()
                 if DEBUG: print("Item", item)
                 if isinstance(item, Reference):
                     if DEBUG: print("Ref", item.name)
-                    start_rule_stack.extend(self.rules[item.name][:])
+                    if item.name in path:
+                        path[item.name] -= 1
+                    else:
+                        path[item.name] = self.maxloops
+                    if path[item.name] > 0:
+                        start_rule_stack.extend([(dict(path),i) for i in self.rules[item.name]])
+                    else:
+                        bucket = []
+                        start_rule_stack = []
                 elif isinstance(item, LiteralString):
                     if DEBUG: print("Literal", item.string)
-                    bucket.append(item)
+                    bucket.append((dict(path), item))
                 elif isinstance(item, pattern):
                     if DEBUG: print("RE", str(item))
-                    bucket.append(item)
+                    bucket.append((dict(path), item))
                 elif isinstance(item, FirstmatchOf):
                     if DEBUG: print("FirstmatchOf", )
                     for _i in item.items[1:]:
                         if DEBUG: print("_Item", _i)
-                        bucket_copy = [x.copy() for x in reversed(bucket)]
-                        start_rules.append(start_rule_stack[:]+_i[:]+bucket_copy)
-                    start_rule_stack.extend(item.items[0][:])
+                        _pair = [(path, p) for p in _i]
+                        bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
+                        start_rules.append(start_rule_stack[:]+_pair+bucket_copy)
+                    start_rule_stack.extend([(path,i) for i in item.items[0]])
                 elif isinstance(item, Optional):
                     if DEBUG: print("Optional", item)
-                    bucket_copy = [x.copy() for x in reversed(bucket)]
+                    bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                     start_rules.append(start_rule_stack[:]+item.item[:]+bucket_copy)
                 elif isinstance(item, ZeroOrMore):
                     if DEBUG: print("ZeroOrMore", item)
                     buf = []
                     for _ in range(self.maxrepeats):
-                        buf.extend(item.item[:])
-                        bucket_copy = [x.copy() for x in reversed(bucket)]
+                        buf.extend([(path, i) for i in item.item])
+                        bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                         start_rules.append(start_rule_stack[:]+buf[:]+bucket_copy)
                 elif isinstance(item, OneOrMore):
                     if DEBUG: print("OneOrMore", item)
-                    buf = item.item[:]
+                    buf = [(path, i) for i in item.item]
                     for _ in range(self.maxrepeats-1):
-                        buf += item.item[:]
-                        bucket_copy = [x.copy() for x in reversed(bucket)]
+                        buf += [(path, i) for i in item.item]
+                        bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                         start_rules.append(start_rule_stack[:]+buf[:]+bucket_copy)
-                    start_rule_stack.extend(item.item[:])
+                    start_rule_stack.extend([(path,i) for i in item.item])
                 else:
                     import pdb; pdb.set_trace()
                     pass
             if bucket:
-                yield [x for x in reversed([x.copy() for x in bucket])]
+                yield [z for z in reversed([y.copy() for x,y in bucket])]
 
 def translate(custom_grammar):
     new_syntax = Grammar(new_notation)
     grammar_tree = new_syntax.parse(custom_grammar)
     for idx, s in enumerate(Sampler().visit(grammar_tree)):
-        if idx ==10: break
+        #if idx ==10: break
         print(''.join(s))
         #import pdb; pdb.set_trace()
     #import pdb; pdb.set_trace()
