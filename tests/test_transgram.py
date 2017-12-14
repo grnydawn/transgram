@@ -3,7 +3,7 @@ import unittest, sys, os
 
 here = os.path.dirname(os.path.realpath(__file__))
 #grammar_test = 'boldtext'
-grammar_test = 'expr'
+#grammar_test = 'expr'
 grammar_test = 'expr_new'
 #grammar_test = 'expr_old'
 #grammar_test = 'simple'

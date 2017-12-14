@@ -278,11 +278,12 @@ class Sampler(NodeVisitor):
 DEBUG = False
 
 class Generator(object):
-    def __init__(self, rules, start_rule, maxloops=6, maxrepeats=2):
+    def __init__(self, rules, start_rule, maxloops=5, maxrepeats=2, randomize=True):
         self.rules = dict(rules)
         self.start_rule = start_rule
         self.maxloops = maxloops
         self.maxrepeats = maxrepeats
+        self.randomize = randomize
 
     def generate(self):
         start_rules = [[({self.start_rule:self.maxloops}, r) for r in self.rules[self.start_rule]]]
@@ -313,12 +314,15 @@ class Generator(object):
                     bucket.append((dict(path), item))
                 elif isinstance(item, FirstmatchOf):
                     if DEBUG: print("FirstmatchOf", )
-                    for _i in item.items[1:]:
+                    items = item.items[:]
+                    if self.randomize:
+                        random.shuffle(items)
+                    for _i in items[1:]:
                         if DEBUG: print("_Item", _i)
                         _pair = [(path, p) for p in _i]
                         bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                         start_rules.append(start_rule_stack[:]+_pair+bucket_copy)
-                    start_rule_stack.extend([(path,i) for i in item.items[0]])
+                    start_rule_stack.extend([(path,i) for i in items[0]])
                 elif isinstance(item, AnymatchOf):
                     if DEBUG: print("AnymatchOf", )
                     shuffled = item.items[:]
