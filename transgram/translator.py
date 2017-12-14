@@ -1,10 +1,8 @@
 ##-*- coding: utf-8 -*-
 #from __future__ import absolute_import, division, print_function, unicode_literals
-import itertools, re, functools, types
+import itertools, re, functools, types, math
 from .grammar import Grammar
 from .nodes import NodeVisitor
-from .expressions import (Literal, Regex, Not, ZeroOrMore,
-    OneOrMore, Optional, Sequence, OneOf)
 from .lego import parse as lego_parse, pattern
 
 new_notation = (r'''
@@ -38,7 +36,8 @@ new_notation = (r'''
     #regex           = "~" spaceless_literal ~"[ilmsux]*"i _
     regex           = "~" spaceless_literal _
     parenthesized   = "(" _ expression ")" _
-    quantifier      = ~"[*+?]" _
+    quantifier      = quantifier_re _
+    quantifier_re   = ~"[*+?]"
     reference       = label !colon
     literal         = spaceless_literal _
     spaceless_literal = ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is /
@@ -122,7 +121,7 @@ class LiteralString(Internal):
     def __init__(self, string):
         self.string = string
 
-    def strings(self, **kwargs):
+    def __iter__(self):
         yield self.string
 
     def copy(self):
@@ -133,6 +132,24 @@ class LiteralString(Internal):
 
     def __repr__(self):
         return '"%s"'%self.string
+
+class Quantified(Internal):
+    def __init__(self, item, start, end):
+        self.item = item
+        self.start = start
+        self.end = end
+
+class Optional(Quantified):
+    def __init__(self, item):
+        super(Optional, self).__init__(item, 0, math.inf)
+
+class ZeroOrMore(Quantified):
+    def __init__(self, item):
+        super(ZeroOrMore, self).__init__(item, 0, math.inf)
+
+class OneOrMore(Quantified):
+    def __init__(self, item):
+        super(OneOrMore, self).__init__(item, 1, math.inf)
 
 class Attribute(Internal):
     pass
@@ -160,6 +177,10 @@ class Sampler(NodeVisitor):
 
     def __init__(self):
         self.rules = {}
+
+    def generic_visit(self, node, items):
+        clsname = node.expr.__class__.__name__.lower()
+        return getattr(self, '_'+clsname)(node, items)
 
     def _literal(self, node, items):
         return [LiteralString(node.text)]
@@ -189,10 +210,6 @@ class Sampler(NodeVisitor):
     def _not(self, node, items):
         return []
 
-    def generic_visit(self, node, items):
-        clsname = node.expr.__class__.__name__.lower()
-        return getattr(self, '_'+clsname)(node, items)
-
     def visit_label(self, node, items):
         return [Label(node.text.strip())]
 
@@ -221,6 +238,20 @@ class Sampler(NodeVisitor):
     def visit_comment(self, node, items):
         return []
 
+    def visit_quantifier_re(self, node, items):
+        return [node.text]
+
+    def visit_quantifier(self, node, items):
+        return items[0]
+
+    def visit_quantified(self, node, items):
+        if items[1][0] == "?":
+            return [Optional(items[0])]
+        elif items[1][0] == "+":
+            return [OneOrMore(items[0])]
+        elif items[1][0] == "*":
+            return [ZeroOrMore(items[0])]
+
     def visit_firstmatched(self, node, items):
         return [FirstmatchOf(node, [items[0]]+items[1])]
 
@@ -240,194 +271,75 @@ class Sampler(NodeVisitor):
 
     def visit_rules(self, node, items):
         start_rule = items[1][0][0]
-        return self.Generator(self.rules, start_rule)
-        #generators = self.Generator(self.rules, start_rule)
-        #return Article(generators)
+        for x in Generator(self.rules, start_rule).generate():
+            for y in itertools.product(*x):
+                yield ''.join(y)
 
-    class Generator(object):
-        def __init__(self, rules, start_rule, maxloops=3):
-            self.rules = dict(rules)
-            self.start_rule = start_rule
-            self.maxloops = maxloops
-            self.barrel = self._generate()
+DEBUG = False
 
-        def _generate(self):
-            barrel = []
-            stack = [self.rules[self.start_rule][:]]
-            while stack:
-                node = stack.pop()
-                bucket = []
-                while node:
-                    print("Node", node)
-                    item = node.pop()
-                    print("Item", item)
-                    if isinstance(item, Reference):
-                        node.extend(self.rules[item.name][:])
-                    elif isinstance(item, LiteralString):
-                        bucket.append(item)
-                    elif isinstance(item, pattern):
-                        bucket.append(item)
-                    elif isinstance(item, FirstmatchOf):
-                        node.extend(item.items[0][:])
-                        for _i in item.items[1:]:
-                            new_bucket = [x.copy() for x in reversed(bucket)]
-                            stack.append(node[:]+_i[:]+new_bucket)
-                    elif isinstance(item, types.GeneratorType):
-                        bucket.append(item)
-                    else:
-                        import pdb; pdb.set_trace()
-                        pass
-                if bucket:
-                    barrel.append(reversed([x.copy() for x in bucket]))
-            return barrel
+class Generator(object):
+    def __init__(self, rules, start_rule, maxloops=3, maxrepeats=3):
+        self.rules = dict(rules)
+        self.start_rule = start_rule
+        self.maxloops = maxloops
+        self.maxrepeats = maxrepeats
 
-#
-#        def _generate(self):
-#            barrel = []
-#            sstack = [[self.rules[self.start_rule]]]
-#            while sstack:
-#                print("SStack", sstack)
-#                stack = sstack.pop()
-#                bucket = []
-#                while stack:
-#                    print("Stack", stack)
-#                    node = stack.pop()
-#                    if isinstance(node, list):
-#                        while node:
-#                            print("Node", node)
-#                            item = node.pop()
-#                            print("Item", item)
-#                            if isinstance(item, Reference):
-#                                stack.append(self.rules[item.name])
-#                            elif isinstance(item, (LiteralString, pattern)):
-#                                stack.append(item.strings())
-#                            elif isinstance(item, FirstmatchOf):
-#                                stack.append(item.items[0])
-#                                for _i in item.items[1:]:
-#                                   sstack.append(node+[_i])
-#                            else:
-#                                import pdb; pdb.set_trace()
-#                                pass
-#                    elif node:
-#                        bucket.append(node)
-#                if bucket:
-#                    barrel.append(bucket)
-#            return barrel
-#
-
-
-
-        def __iter__(self):
-            for bucket in self.barrel:
-                for bottles in itertools.product(*bucket):
-                        yield bottles
-
-#    class Generator(object):
-#        def __init__(self, rules, start_rule, maxloops=3):
-#            self.rules = dict(rules)
-#            self.start_rule = start_rule
-#            self.maxloops = maxloops
-#
-#        def __iter__(self):
-#            for gen in self._get_generators(self.start_rule):
-#                yield gen
-#
-#        def _get_generators(self, rulename, path={}):
-#
-#            generators = [[]]
-#
-#            def _trimgenerators(generators):
-#                newgens = []
-#                for gen in generators:
-#                    if all(item is not None for item in gen):
-#                        newgens.append(gen)
-#                if len(newgens) == 0:
-#                    newgens.append([None])
-#                return newgens
-#
-#            def _productextend(*items):
-#                if len(items)>1:
-#                    temp = []
-#                    for item in itertools.product(items[0], _productextend(*items[1:])):
-#                        try:
-#                            temp.append(functools.reduce(lambda x,y: x+y, item))
-#                        except Exception as err:
-#                            import pdb; pdb.set_trace()
-#                else:
-#                    return items[0]
-#                return temp
-#
-#            #print("AA", rulename, path)
-#
-#            #import pdb; pdb.set_trace()
-##            # handling attributes
-##            for item in self.rules[rulename]:
-##                if isinstance(item, self.Attribute):
-##                    # common attribute handling
-##                    if isinstance(item, self.AngleAttribute):
-##                        # angle attribute handling
-##                        import pdb; pdb.set_trace()
-##                    elif isinstance(item, self.BraceAttribute):
-##                        # barce attribute handling
-##                        import pdb; pdb.set_trace()
-#
-#            # generate structure for this rule
-#            for item in self.rules[rulename]:
-#                if isinstance(item, pattern):
-#                    generators = _productextend(generators, [[item.copy()]])
-#                elif isinstance(item, LiteralString):
-#                    generators = _productextend(generators, [[item.copy()]])
-#                elif isinstance(item, Reference):
-#                    subgen = self._get_generators(item.name, path=path)
-#                    generators = _productextend(generators, subgen)
-#                elif isinstance(item, FirstmatchOf):
-#                    itemgens = []
-#                    for _item in item.items:
-#                        itemid = str(sum([id(o) for o in _item]))
-#                        if itemid not in self.rules:
-#                            self.rules[itemid] = _item
-#
-#                        if itemid not in path:
-#                            path[itemid] = self.maxloops
-#
-#                        if path[itemid] == self.maxloops:
-##                            for nloops in range(self.maxloops):
-##                                newpath = dict(path)
-##                                newpath[itemid] = nloops
-##                                subgen = self._get_generators(itemid, path=newpath)
-##                                itemgens.append(subgen)
-#
-#                            newpath = dict(path)
-#                            #newpath[itemid] = self.maxloops - 1
-#                            newpath[itemid] = 1
-#                            subgen = self._get_generators(itemid, path=newpath)
-#                            itemgens.append(subgen)
-#                        elif path[itemid] > 0:
-#                            path[itemid] -= 1
-#                            subgen = self._get_generators(itemid, path=path)
-#                            itemgens.append(subgen)
-#                        else:
-#                            itemgens.append([None])
-#                    itemgens = _trimgenerators(itemgens)
-#                    #import pdb; pdb.set_trace()
-#                    #for itemgen in itemgens:
-#                    #    generators = _productextend(generators, itemgen)
-#                    generators = _productextend(generators, *itemgens)
-#                else:
-#                    import pdb; pdb.set_trace()
-#            #print("CC1", rulename, path, generators)
-#            #print("CC", rulename, len(generators))
-#            #import pdb; pdb.set_trace()
-#            generators = _trimgenerators(generators)
-#            #print("CC2", rulename, path, generators)
-#            return generators
+    def generate(self):
+        start_rules = [self.rules[self.start_rule][:]]
+        while start_rules:
+            if DEBUG: print("Rules", start_rules)
+            start_rule_stack = start_rules.pop()
+            bucket = []
+            while start_rule_stack:
+                if DEBUG: print("Stack", start_rule_stack)
+                item = start_rule_stack.pop()
+                if DEBUG: print("Item", item)
+                if isinstance(item, Reference):
+                    if DEBUG: print("Ref", item.name)
+                    start_rule_stack.extend(self.rules[item.name][:])
+                elif isinstance(item, LiteralString):
+                    if DEBUG: print("Literal", item.string)
+                    bucket.append(item)
+                elif isinstance(item, pattern):
+                    if DEBUG: print("RE", str(item))
+                    bucket.append(item)
+                elif isinstance(item, FirstmatchOf):
+                    if DEBUG: print("FirstmatchOf", )
+                    for _i in item.items[1:]:
+                        if DEBUG: print("_Item", _i)
+                        bucket_copy = [x.copy() for x in reversed(bucket)]
+                        start_rules.append(start_rule_stack[:]+_i[:]+bucket_copy)
+                    start_rule_stack.extend(item.items[0][:])
+                elif isinstance(item, Optional):
+                    if DEBUG: print("Optional", item)
+                    bucket_copy = [x.copy() for x in reversed(bucket)]
+                    start_rules.append(start_rule_stack[:]+item.item[:]+bucket_copy)
+                elif isinstance(item, ZeroOrMore):
+                    if DEBUG: print("ZeroOrMore", item)
+                    buf = []
+                    for _ in range(self.maxrepeats):
+                        buf.extend(item.item[:])
+                        bucket_copy = [x.copy() for x in reversed(bucket)]
+                        start_rules.append(start_rule_stack[:]+buf[:]+bucket_copy)
+                elif isinstance(item, OneOrMore):
+                    if DEBUG: print("OneOrMore", item)
+                    buf = item.item[:]
+                    for _ in range(self.maxrepeats-1):
+                        buf += item.item[:]
+                        bucket_copy = [x.copy() for x in reversed(bucket)]
+                        start_rules.append(start_rule_stack[:]+buf[:]+bucket_copy)
+                    start_rule_stack.extend(item.item[:])
+                else:
+                    import pdb; pdb.set_trace()
+                    pass
+            if bucket:
+                yield [x for x in reversed([x.copy() for x in bucket])]
 
 def translate(custom_grammar):
     new_syntax = Grammar(new_notation)
     grammar_tree = new_syntax.parse(custom_grammar)
-    sampler = Sampler().visit(grammar_tree)
-    for s in sampler:
-        #if idx ==3: break
+    for idx, s in enumerate(Sampler().visit(grammar_tree)):
+        if idx ==10: break
         print(''.join(s))
         #import pdb; pdb.set_trace()
     #import pdb; pdb.set_trace()

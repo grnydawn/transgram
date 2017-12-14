@@ -1,4 +1,5 @@
 Expr    : Sum
 Sum     : Product (('+' / '-') Product)*
 Product : Value (('*' / '/') Value)*
-Value   : ~"[0-9]{1}" / ('(' Expr ')')
+Value   : ~"(0|1)" / ('(' Expr ')')
+#Value   : ~"[0-9]{1}" / ('(' Expr ')')
