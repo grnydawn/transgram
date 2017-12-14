@@ -1,2 +1,2 @@
 # transgram
-Context-sensitive Grammar Translator
+T.B.D.
