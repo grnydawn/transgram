@@ -1638,10 +1638,12 @@ class pattern(lego):
 		return hash(self.concs)
 
 	def __repr__(self):
-		string = "pattern("
-		string += ", ".join(repr(c) for c in self.concs)
-		string += ")"
-		return string
+# DEBUG
+#		string = "pattern("
+#		string += ", ".join(repr(c) for c in self.concs)
+#		string += ")"
+#		return string
+		return str(self)
 
 	def times(self, multiplier):
 		if multiplier == one:
