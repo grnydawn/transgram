@@ -12,7 +12,8 @@ new_notation = (r'''
 
     # high-level rules
     rules           = _ rule*
-    rule            = label expression_attributes_angle? colon expression
+    # expression_attributes_brace? should be attached to expression, not rule
+    rule            = label expression_attributes_angle? colon expression expression_attributes_brace?
     expression      = firstmatched / ored / sequence / term
     firstmatched    = term firstmatch_term+
     ored            = term or_term+
@@ -28,9 +29,13 @@ new_notation = (r'''
     expression_attributes_brace = "{" _ attribute_parts? "}" _
     semicolon_separated_part = semicolon attribute_items
     attribute_parts = attribute_items semicolon_separated_part*
-    attribute_name = attr_label colon
-    comma_separated_term = comma attr_label
-    attribute_items = attribute_name? attr_label comma_separated_term*
+    attribute_name  = attr_label expression_itemnum? colon
+    expression_itemnum= "@" _ ~"[0-9]+"
+    #expression_itemnum= "@" _ integer
+    comma_separated_term = comma comma_term
+    attribute_items = attribute_name? comma_term comma_separated_term*
+    comma_term      = label / literal / number / regex / paren_comma_term
+    paren_comma_term = "(" _ comma_term ")" _
 
     # primitive terms
     quantified      = atom quantifier
@@ -59,50 +64,12 @@ new_notation = (r'''
     semicolon       = ";" _
     left            = "=>" _
     right           = "<=" _
-    integer         = ~"[-+]?[0-9]+"
+    number          = float / integer
+    integer         = ~r"[-+]?[0-9]+" _
+    float           = ~r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?" _
 ''')
 
-#schars = ["\\", ".", "^", "$", "*", "+", "?", "{", "}", "[", "]", "|", "(", ")"]
 DEBUG = False
-
-class Article(object):
-
-    def __init__(self, structure):
-        self.structure = structure
-        #self.generator = self.product(*self.structure, otherchar="_otherchar_")
-
-    def sentences(self):
-        # generate structures
-        # sort by some ways
-        # get one by one
-        for struct in self.structure:
-            for s in self.product(*struct, otherchar="_otherchar_"):
-                yield s
-
-    # from https://bugs.python.org/issue10109
-    def product(self, *iters, **kwargs):
-        otherchar = kwargs.get('otherchar', None)
-        inf_iters = tuple(itertools.cycle(enumerate(
-            it.strings(otherchar=otherchar))) for it in iters)
-        num_iters = len(inf_iters)
-        cur_val = [None for _ in range(num_iters)]
-
-        first_v = True
-        while True:
-            i, p = 0, num_iters
-            while p and not i:
-                p -= 1
-                #i, cur_val[p] = inf_iters[p].next()
-                i, cur_val[p] = next(inf_iters[p])
-
-            if not p and not i:
-                if first_v:
-                    first_v = False
-                else:
-                    break
-
-            yield tuple(cur_val)
-
 
 ###### internal classes #####
 
@@ -169,7 +136,8 @@ class RightAssociative(Internal):
         return '"<="'
 
 class Attribute(Internal):
-    pass
+    def __init__(self, attrs):
+        self.attrs = attrs
 
 class AngleAttribute(Attribute):
     pass
@@ -246,8 +214,8 @@ class Sampler(NodeVisitor):
     def visit_blanks(self, node, items):
         ch = ''
         if node.text:
-            #ch = r'\n' if node.text.find('\n')>=0 else r' '
-            ch = r' '
+            ch = r'\n' if node.text.find('\n')>=0 else r' '
+            #ch = r' '
         if ch:
             return [lego_parse(ch)]
         else:
@@ -255,12 +223,6 @@ class Sampler(NodeVisitor):
 
     def visit_comment(self, node, items):
         return []
-
-    #def visit_left(self, node, items):
-    #    return [LeftAssociative()]
-
-    #def visit_right(self, node, items):
-    #    return [RightAssociative()]
 
     def visit_sequence(self, node, items):
 
@@ -275,28 +237,61 @@ class Sampler(NodeVisitor):
         elif not left and not right:
             left = True
 
-        if left:
-            return items[1]+items[2]+items[4]
-        elif right:
-            ref = None
-            for item in reversed(items[1]+items[2]):
-                if item:
-                    rulename = self.rule_prefix%len(self.rules)
-                    if ref:
-                        self.rules[rulename] = [item, ref]
-                    else:
-                        self.rules[rulename] = [item]
-                    ref = Reference(rulename)
-            if ref:
-                return [ref]
+        terms = items[1]+items[2]
+        if items[4]:
+            attrs = items[4][0].attrs
+            if "string" in attrs:
+                if 0 in attrs["string"]:
+                    for i in range(len(terms)):
+                        terms[i] = attrs["string"][0][0]
+                for i in range(len(terms)):
+                    if i+1 in attrs["string"]:
+                        terms[i] = attrs["string"][i+1][0]
+
+        # remove attribute after completing all required actions
+        return terms
+
+    def visit_expression_itemnum(self, node, items):
+        return ["@", int(node.children[2].text)]
+
+    #attribute_items = attribute_name? attr_label comma_separated_term*
+    def visit_attribute_items(self, node, items):
+        return [items[0], items[1]+[i for i in items[2] if i != ","]]
+
+    def _attr_brace(self, node, items, default_name, attr_class):
+
+        attrs = {}
+        semicolon_items = []
+
+        def _getitems():
+            name = default_name,
+            num = 0
+            attr_name, opts = semicolon_items
+            if attr_name:
+                name = attr_name[0].name.strip()
+                if "@" in attr_name:
+                    num = attr_name[2]
+            if name not in attrs:
+                attrs[name] = {}
+            if num not in attrs[name]:
+                attrs[name][num] = []
+            attrs[name][num].extend(opts)
+
+        for flag in items[2]:
+            if flag == ";":
+                _getitems()
             else:
-                return []
+                semicolon_items.append(flag)
+        if semicolon_items:
+            _getitems()
+
+        return [attr_class(attrs)]
 
     def visit_expression_attributes_brace(self, node, items):
-        import pdb; pdb.set_trace()
+        return self._attr_brace(node, items, "filter", BraceAttribute)
 
     def visit_expression_attributes_angle(self, node, items):
-        import pdb; pdb.set_trace()
+        return self._attr_brace(node, items, "action", AngleAttribute)
 
     def visit_quantifier_re(self, node, items):
         return [node.text]
@@ -325,6 +320,18 @@ class Sampler(NodeVisitor):
         return [items[2]]
 
     def visit_rule(self, node, items):
+        if items[4]:
+            attrs = items[4][0].attrs
+            terms = items[3][:]
+            if "string" in attrs:
+                if 0 in attrs["string"]:
+                    for i in range(len(terms)):
+                        terms[i] = attrs["string"][0][0]
+                for i in range(len(terms)):
+                    if i+1 in attrs["string"]:
+                        terms[i] = attrs["string"][i+1][0]
+            items[3] = terms
+
         rulename = items[0][0].name
         self.rules[rulename] = items[3]
         return [(rulename, node.start)]
