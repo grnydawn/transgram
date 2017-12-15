@@ -5,6 +5,8 @@ from .grammar import Grammar
 from .nodes import NodeVisitor
 from .lego import parse as lego_parse, pattern
 
+DEBUG = False
+
 new_notation = (r'''
     # New notation to express context-free and context-sensitive grammars
 
@@ -57,6 +59,7 @@ new_notation = (r'''
     semicolon       = ";" _
     left            = "=>" _
     right           = "<=" _
+    integer         = ~"[-+]?[0-9]+"
 ''')
 
 #schars = ["\\", ".", "^", "$", "*", "+", "?", "{", "}", "[", "]", "|", "(", ")"]
@@ -121,6 +124,12 @@ class LiteralString(Internal):
     def __init__(self, string):
         self.string = string
 
+    def __eq__(self, other):
+        if isinstance(other, LiteralString):
+            return self.string == other.string
+        elif isinstance(other, str):
+            return self.string == other
+
     def __iter__(self):
         yield self.string
 
@@ -151,6 +160,14 @@ class OneOrMore(Quantified):
     def __init__(self, item):
         super(OneOrMore, self).__init__(item, 1, math.inf)
 
+class LeftAssociative(Internal):
+    def __str__(self):
+        return '"=>"'
+
+class RightAssociative(Internal):
+    def __str__(self):
+        return '"<="'
+
 class Attribute(Internal):
     pass
 
@@ -177,6 +194,7 @@ class Sampler(NodeVisitor):
 
     def __init__(self):
         self.rules = {}
+        self.rule_prefix = "__rule__%d"
 
     def generic_visit(self, node, items):
         clsname = node.expr.__class__.__name__.lower()
@@ -238,6 +256,48 @@ class Sampler(NodeVisitor):
     def visit_comment(self, node, items):
         return []
 
+    #def visit_left(self, node, items):
+    #    return [LeftAssociative()]
+
+    #def visit_right(self, node, items):
+    #    return [RightAssociative()]
+
+    def visit_sequence(self, node, items):
+
+        left = False
+        right = False
+        if len(items[0]) > 0 and items[0][0] == "=>":
+            left = True
+        if len(items[-2]) > 0 and items[-2][0] == "<=":
+            right = True
+        if left and right:
+            raise Exception("Can not be both of left and right associative.")
+        elif not left and not right:
+            left = True
+
+        if left:
+            return items[1]+items[2]+items[4]
+        elif right:
+            ref = None
+            for item in reversed(items[1]+items[2]):
+                if item:
+                    rulename = self.rule_prefix%len(self.rules)
+                    if ref:
+                        self.rules[rulename] = [item, ref]
+                    else:
+                        self.rules[rulename] = [item]
+                    ref = Reference(rulename)
+            if ref:
+                return [ref]
+            else:
+                return []
+
+    def visit_expression_attributes_brace(self, node, items):
+        import pdb; pdb.set_trace()
+
+    def visit_expression_attributes_angle(self, node, items):
+        import pdb; pdb.set_trace()
+
     def visit_quantifier_re(self, node, items):
         return [node.text]
 
@@ -271,14 +331,13 @@ class Sampler(NodeVisitor):
 
     def visit_rules(self, node, items):
         start_rule = items[1][0][0]
-        for x in Generator(self.rules, start_rule).generate():
+        for x in Generator(self.rules, start_rule, randomize=True).generate():
             for y in itertools.product(*x):
                 yield ''.join(y)
 
-DEBUG = False
 
 class Generator(object):
-    def __init__(self, rules, start_rule, maxloops=5, maxrepeats=2, randomize=True):
+    def __init__(self, rules, start_rule, maxloops=5, maxrepeats=2, randomize=None):
         self.rules = dict(rules)
         self.start_rule = start_rule
         self.maxloops = maxloops
@@ -286,10 +345,21 @@ class Generator(object):
         self.randomize = randomize
 
     def generate(self):
+
+        if self.randomize is True:
+            random.seed(None)
+        else:
+            random.seed(len(self.start_rule))
+
         start_rules = [[({self.start_rule:self.maxloops}, r) for r in self.rules[self.start_rule]]]
         while start_rules:
             if DEBUG: print("Rules", start_rules)
-            start_rule_stack = start_rules.pop()
+
+            if self.randomize is True:
+                start_rule_stack = start_rules.pop(random.randint(0,len(start_rules)-1))
+            else:
+                start_rule_stack = start_rules.pop()
+
             bucket = []
             while start_rule_stack:
                 if DEBUG: print("Stack", start_rule_stack)
@@ -315,8 +385,11 @@ class Generator(object):
                 elif isinstance(item, FirstmatchOf):
                     if DEBUG: print("FirstmatchOf", )
                     items = item.items[:]
-                    if self.randomize:
+                    if self.randomize is True:
                         random.shuffle(items)
+                    elif self.randomize is None:
+                        for _ in range(random.randint(0,len(items))):
+                            items.append(items.pop(0))
                     for _i in items[1:]:
                         if DEBUG: print("_Item", _i)
                         _pair = [(path, p) for p in _i]
@@ -326,7 +399,8 @@ class Generator(object):
                 elif isinstance(item, AnymatchOf):
                     if DEBUG: print("AnymatchOf", )
                     shuffled = item.items[:]
-                    random.shuffle(shuffled)
+                    if not self.randomize is False:
+                        random.shuffle(shuffled)
                     for _i in shuffled[1:]:
                         if DEBUG: print("_Item", _i)
                         _pair = [(path, p) for p in _i]
