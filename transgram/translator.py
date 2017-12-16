@@ -1,6 +1,7 @@
 ##-*- coding: utf-8 -*-
 #from __future__ import absolute_import, division, print_function, unicode_literals
 import itertools, re, functools, types, math, random
+from collections import OrderedDict
 from .grammar import Grammar
 from .nodes import NodeVisitor
 from .lego import parse as lego_parse, pattern
@@ -30,8 +31,7 @@ new_notation = (r'''
     semicolon_separated_part = semicolon attribute_items
     attribute_parts = attribute_items semicolon_separated_part*
     attribute_name  = attr_label expression_itemnum? colon
-    expression_itemnum= "@" _ ~"[0-9]+"
-    #expression_itemnum= "@" _ integer
+    expression_itemnum= "@" _ ~"[0-9]+" _
     comma_separated_term = comma comma_term
     attribute_items = attribute_name? comma_term comma_separated_term*
     comma_term      = label / literal / number / regex / paren_comma_term
@@ -39,16 +39,19 @@ new_notation = (r'''
 
     # primitive terms
     quantified      = atom quantifier
-    atom            = reference / literal / regex / parenthesized
+    atom            = literal / reference / regex / parenthesized
     #regex           = "~" spaceless_literal ~"[ilmsux]*"i _
     regex           = "~" spaceless_literal _
     parenthesized   = "(" _ expression ")" _
     quantifier      = quantifier_re _
     quantifier_re   = ~"[*+?]"
     reference       = label !colon
-    literal         = spaceless_literal _
+    literal         = (spaceless_literal / binary_literal / octal_literal / hex_literal) _
     spaceless_literal = ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is /
                         ~"u?r?'[^'\\\\]*(?:\\\\.[^'\\\\]*)*'"is
+    binary_literal  = ~"b\"[01]*\""is
+    octal_literal   = ~"o\"[0-7]*\""is
+    hex_literal     = ~"x\"[0-9a-fA-F]*\""is
 
     # primitive items
     _               = meaninglessness*
@@ -58,7 +61,7 @@ new_notation = (r'''
     blanks          = hspaces / vspaces
     hspaces         = ~r"[ \t]+"
     vspaces         = ~r"[\r\n\f\v]+"
-    comment         = "#" ~r"[^\r\n]*"
+    comment         = "#" ~"hint\s*:"? ~r"[^\r\n]*"
     colon           = ":" _
     comma           = "," _
     semicolon       = ";" _
@@ -87,27 +90,39 @@ class Label(Internal):
     def __init__(self, label):
         self.name = label
 
-class LiteralString(Internal):
-    def __init__(self, string):
-        self.string = string
+class Literal(Internal):
+    def __init__(self, elements):
+        self.elements = elements
 
     def __eq__(self, other):
-        if isinstance(other, LiteralString):
-            return self.string == other.string
+        if isinstance(other, self.__class__):
+            return self.elements == other.elements
         elif isinstance(other, str):
-            return self.string == other
+            return self.elements == other
 
     def __iter__(self):
-        yield self.string
+        yield self.elements
 
     def copy(self):
-        return self.__class__(self.string)
+        return self.__class__(self.elements)
 
     def __str__(self):
         return repr(self)
 
     def __repr__(self):
-        return '"%s"'%self.string
+        return '"%s"'%self.elements
+
+class LiteralString(Literal):
+    pass
+
+class LiteralBin(Literal):
+    pass
+
+class LiteralOct(Literal):
+    pass
+
+class LiteralHex(Literal):
+    pass
 
 class Quantified(Internal):
     def __init__(self, item, start, end):
@@ -157,11 +172,16 @@ class FirstmatchOf(Iterator):
 class AnymatchOf(Iterator):
     pass
 
+
+class Hint(Internal):
+    def __init__(self, sentence):
+        self.sentence = sentence
+
 ##### sampler
 class Sampler(NodeVisitor):
 
     def __init__(self):
-        self.rules = {}
+        self.rules = OrderedDict()
         self.rule_prefix = "__rule__%d"
 
     def generic_visit(self, node, items):
@@ -205,8 +225,20 @@ class Sampler(NodeVisitor):
     def visit_regex(self, node, items):
         return [lego_parse(eval(node.children[1].text))]
 
+    def visit_spaceless_literal(self, node, items):
+        return [LiteralString(eval(node.text))]
+
+    def visit_binary_literal(self, node, items):
+        return [LiteralBin(node.text[2:-1])]
+
+    def visit_octal_literal(self, node, items):
+        return [LiteralOct(node.text[2:-1])]
+
+    def visit_hex_literal(self, node, items):
+        return [LiteralHex(node.text[2:-1])]
+
     def visit_literal(self, node, items):
-        return [LiteralString(eval(node.children[0].text))]
+        return items[0]
 
     def visit_parenthesized(self, node, items):
         return items[2]
@@ -215,13 +247,15 @@ class Sampler(NodeVisitor):
         ch = ''
         if node.text:
             ch = r'\n' if node.text.find('\n')>=0 else r' '
-            #ch = r' '
         if ch:
             return [lego_parse(ch)]
         else:
             return []
 
     def visit_comment(self, node, items):
+        if items[1]:
+            hint = Hint(node.children[2].text)
+            self.rules[self.rule_prefix%len(self.rules)] = hint
         return []
 
     def visit_sequence(self, node, items):
@@ -248,13 +282,12 @@ class Sampler(NodeVisitor):
                     if i+1 in attrs["string"]:
                         terms[i] = attrs["string"][i+1][0]
 
-        # remove attribute after completing all required actions
+        # removed attribute on completing all required actions
         return terms
 
     def visit_expression_itemnum(self, node, items):
         return ["@", int(node.children[2].text)]
 
-    #attribute_items = attribute_name? attr_label comma_separated_term*
     def visit_attribute_items(self, node, items):
         return [items[0], items[1]+[i for i in items[2] if i != ","]]
 
@@ -337,8 +370,16 @@ class Sampler(NodeVisitor):
         return [(rulename, node.start)]
 
     def visit_rules(self, node, items):
+
+        # hint processing
+        rules = [r for r in self.rules.items()]
+        pairs = zip(rules[:-1], rules[1:])
+        for (pname, prule), (nname, nrule) in pairs:
+            if isinstance(prule, Hint):
+                #import pdb; pdb.set_trace()
+                pass
         start_rule = items[1][0][0]
-        for x in Generator(self.rules, start_rule, randomize=True).generate():
+        for x in Generator(self.rules, start_rule, randomize=False).generate():
             for y in itertools.product(*x):
                 yield ''.join(y)
 
@@ -383,8 +424,8 @@ class Generator(object):
                     else:
                         bucket = []
                         start_rule_stack = []
-                elif isinstance(item, LiteralString):
-                    if DEBUG: print("Literal", item.string)
+                elif isinstance(item, Literal):
+                    if DEBUG: print("Literal", item.elements)
                     bucket.append((dict(path), item))
                 elif isinstance(item, pattern):
                     if DEBUG: print("RE", str(item))
@@ -451,3 +492,5 @@ def translate(custom_grammar):
     #cgrammar = CanonicalGrammar().visit(parsetree)
     #parglare_grammar = translate_to_parglare(cgrammar)
     #parglare_parsers = generate_parglare_parsers(parglare_grammar)
+    #if multiple parsers, then take one sample from generations
+    #and parse using the parsers and see where they diverge

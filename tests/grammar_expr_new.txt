@@ -1,6 +1,7 @@
+#hint : sdfslsdf sdf sd...sdf
 E   :
     ('(' E ')')
-    / ( E '^' E<=)
+    / (E '^' E<=)
     / (E '*' E) | (E '/' E {string@3:" x "})
     / (E '+' E) | (E '-' E)
     / number
