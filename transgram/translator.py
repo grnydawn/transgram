@@ -9,21 +9,18 @@ from .lego import parse as lego_parse, pattern
 DEBUG = False
 
 new_notation = (r'''
-    # New notation to express context-free and context-sensitive grammars
+    # notation for context-free and context-sensitive grammars
 
     # high-level rules
     rules           = _ rule*
-    # expression_attributes_brace? should be attached to expression, not rule
     rule            = label expression_attributes_angle? colon expression expression_attributes_brace?
     expression      = firstmatched / ored / sequence / term
     firstmatched    = term firstmatch_term+
+    firstmatch_term = ("/" _ ored) / ("/" _ term)
     ored            = term or_term+
+    or_term         = "|" _ term
     sequence        = left? term term+ right? expression_attributes_brace?
     term            = quantified / atom
-
-    # choice terms
-    firstmatch_term = ("/" _ ored) / ("/" _ term)
-    or_term         = "|" _ term
 
     # expression attributes
     expression_attributes_angle = "<" _ attribute_parts? ">" _
@@ -31,34 +28,36 @@ new_notation = (r'''
     semicolon_separated_part = semicolon attribute_items
     attribute_parts = attribute_items semicolon_separated_part*
     attribute_name  = attr_label expression_itemnum? colon
-    expression_itemnum= "@" _ ~"[0-9]+" _
+    expression_itemnum= "@" _ digits
     comma_separated_term = comma comma_term
     attribute_items = attribute_name? comma_term comma_separated_term*
     comma_term      = label / literal / number / regex / paren_comma_term
     paren_comma_term = "(" _ comma_term ")" _
 
-    # primitive terms
+    # terms
     quantified      = atom quantifier
     atom            = literal / reference / regex / parenthesized
     #regex           = "~" spaceless_literal ~"[ilmsux]*"i _
     regex           = "~" spaceless_literal _
     parenthesized   = "(" _ expression ")" _
     quantifier      = quantifier_re _
-    quantifier_re   = ~"[*+?]"
     reference       = label !colon
     literal         = (spaceless_literal / binary_literal / octal_literal / hex_literal) _
-    spaceless_literal = ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is /
+    attr_label      = label
+    _               = meaninglessness*
+    meaninglessness = blanks / comment
+    blanks          = hspaces / vspaces
+    number          = float / integer
+
+    # regular expressions and basic terms
+    digits          = ~"[0-9]+" _
+    spaceless_literal= ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is /
                         ~"u?r?'[^'\\\\]*(?:\\\\.[^'\\\\]*)*'"is
     binary_literal  = ~"b\"[01]*\""is
     octal_literal   = ~"o\"[0-7]*\""is
     hex_literal     = ~"x\"[0-9a-fA-F]*\""is
-
-    # primitive items
-    _               = meaninglessness*
-    attr_label      = label
+    quantifier_re   = ~"[*+?]"
     label           = ~"[a-zA-Z_][a-zA-Z_0-9]*" _
-    meaninglessness = blanks / comment
-    blanks          = hspaces / vspaces
     hspaces         = ~r"[ \t]+"
     vspaces         = ~r"[\r\n\f\v]+"
     comment         = "#" ~"hint\s*:"? ~r"[^\r\n]*"
@@ -67,7 +66,6 @@ new_notation = (r'''
     semicolon       = ";" _
     left            = "=>" _
     right           = "<=" _
-    number          = float / integer
     integer         = ~r"[-+]?[0-9]+" _
     float           = ~r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?" _
 ''')
