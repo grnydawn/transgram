@@ -404,7 +404,7 @@ class Generator(object):
             if self.randomize is True:
                 start_rule_stack = start_rules.pop(random.randint(0,len(start_rules)-1))
             else:
-                start_rule_stack = start_rules.pop()
+                start_rule_stack = start_rules.pop(0)
 
             bucket = []
             while start_rule_stack:
