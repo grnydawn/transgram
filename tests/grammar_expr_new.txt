@@ -1,4 +1,4 @@
-#hint : sdfslsdf sdf sd...sdf
+#hint : sample maxloops(3), maxrepeats(2)
 E   :
     ('(' E ')')
     / (E '^' E<=)
@@ -6,4 +6,4 @@ E   :
     / (E '+' E) | (E '-' E)
     / number
 
-number: ~"[\d]+" {string: ~" (1|2) "}
+number: ~"[\d]+" {string: ~" (1|2) "} #hint sample maxrepeats(2)

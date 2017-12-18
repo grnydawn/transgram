@@ -5,6 +5,7 @@ from collections import OrderedDict
 from .grammar import Grammar
 from .nodes import NodeVisitor
 from .lego import parse as lego_parse, pattern
+from .hint import Hint
 
 DEBUG = False
 
@@ -69,6 +70,8 @@ new_notation = (r'''
     integer         = ~r"[-+]?[0-9]+" _
     float           = ~r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?" _
 ''')
+
+new_syntax = Grammar(new_notation)
 
 DEBUG = False
 
@@ -171,16 +174,13 @@ class AnymatchOf(Iterator):
     pass
 
 
-class Hint(Internal):
-    def __init__(self, sentence):
-        self.sentence = sentence
-
 ##### sampler
 class Sampler(NodeVisitor):
 
     def __init__(self):
         self.rules = OrderedDict()
         self.rule_prefix = "__rule__%d"
+        self.hint_multiline = []
 
     def generic_visit(self, node, items):
         clsname = node.expr.__class__.__name__.lower()
@@ -252,8 +252,14 @@ class Sampler(NodeVisitor):
 
     def visit_comment(self, node, items):
         if items[1]:
-            hint = Hint(node.children[2].text)
-            self.rules[self.rule_prefix%len(self.rules)] = hint
+            hint_string = node.children[2].text.strip()
+            if hint_string and hint_string[-1] == "\\":
+                self.hint_multiline.append(hint_string[:-1])
+            else:
+                self.hint_multiline.append(hint_string)
+                hint = Hint(''.join(self.hint_multiline))
+                self.rules[self.rule_prefix%len(self.rules)] = hint
+                self.hint_multiline = []
         return []
 
     def visit_sequence(self, node, items):
@@ -370,14 +376,24 @@ class Sampler(NodeVisitor):
     def visit_rules(self, node, items):
 
         # hint processing
+        sample_kwargs = {}
         rules = [r for r in self.rules.items()]
         pairs = zip(rules[:-1], rules[1:])
         for (pname, prule), (nname, nrule) in pairs:
             if isinstance(prule, Hint):
-                #import pdb; pdb.set_trace()
+                hints = prule.collect(modes="sample")
+                if 'maxrepeats' in hints:
+                    sample_kwargs['maxrepeats'] = hints['maxrepeats']
+                if 'maxloops' in hints:
+                    sample_kwargs['maxloops'] = hints['maxloops']
+                if 'randomize' in hints:
+                    sample_kwargs['randomize'] = hints['randomize']
+            elif isinstance(nrule, Hint): #and the same line, then inline hint
+                import pdb; pdb.set_trace()
                 pass
+
         start_rule = items[1][0][0]
-        for x in Generator(self.rules, start_rule, randomize=False).generate():
+        for x in Generator(self.rules, start_rule, **sample_kwargs).generate():
             for y in itertools.product(*x):
                 yield ''.join(y)
 
@@ -480,7 +496,6 @@ class Generator(object):
                 yield [z for z in reversed([y.copy() for x,y in bucket])]
 
 def translate(custom_grammar):
-    new_syntax = Grammar(new_notation)
     grammar_tree = new_syntax.parse(custom_grammar)
     for idx, s in enumerate(Sampler().visit(grammar_tree)):
         #if idx ==10: break
