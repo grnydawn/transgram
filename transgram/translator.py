@@ -6,72 +6,86 @@ from .grammar import Grammar
 from .nodes import NodeVisitor
 from .lego import parse as lego_parse, pattern
 from .hint import Hint
+from .parglare import ParglareConversion
 
 DEBUG = False
 
-new_notation = (r'''
+grammar_notation = (r'''
     # notation for context-free and context-sensitive grammars
 
     # high-level rules
     rules           = _ rule*
-    rule            = label expression_attributes_angle? colon expression expression_attributes_brace?
+    rule            = LABEL expression_attributes_angle? COLON expression expression_attributes_brace?
     expression      = firstmatched / ored / sequence / term
     firstmatched    = term firstmatch_term+
-    firstmatch_term = ("/" _ ored) / ("/" _ term)
+    firstmatch_term = (SLASH ored) / (SLASH term)
     ored            = term or_term+
-    or_term         = "|" _ term
-    sequence        = left? term term+ right? expression_attributes_brace?
+    or_term         = VBAR term
+    sequence        = LEFT? term term+ RIGHT? expression_attributes_brace?
     term            = quantified / atom
 
     # expression attributes
-    expression_attributes_angle = "<" _ attribute_parts? ">" _
-    expression_attributes_brace = "{" _ attribute_parts? "}" _
-    semicolon_separated_part = semicolon attribute_items
+    expression_attributes_angle = LANGLE attribute_parts? RANGLE
+    expression_attributes_brace = LBRACE attribute_parts? RBRACE
+    semicolon_separated_part = SEMICOLON attribute_items
     attribute_parts = attribute_items semicolon_separated_part*
-    attribute_name  = attr_label expression_itemnum? colon
-    expression_itemnum= "@" _ digits
-    comma_separated_term = comma comma_term
+    attribute_name  = attr_label expression_itemnum? COLON
+    expression_itemnum= AT DIGITS
+    comma_separated_term = COMMA comma_term
     attribute_items = attribute_name? comma_term comma_separated_term*
-    comma_term      = label / literal / number / regex / paren_comma_term
-    paren_comma_term = "(" _ comma_term ")" _
+    comma_term      = LABEL / literal / number / regex / paren_comma_term
+    paren_comma_term = LPARAN comma_term RPARAN
 
     # terms
     quantified      = atom quantifier
     atom            = literal / reference / regex / parenthesized
-    #regex           = "~" spaceless_literal ~"[ilmsux]*"i _
-    regex           = "~" spaceless_literal _
-    parenthesized   = "(" _ expression ")" _
-    quantifier      = quantifier_re _
-    reference       = label !colon
-    literal         = (spaceless_literal / binary_literal / octal_literal / hex_literal) _
-    attr_label      = label
+    #regex           = TILDE SPACELESS_LITERAL ~"[ilmsux]*"i _
+    regex           = TILDE SPACELESS_LITERAL _
+    parenthesized   = LPARAN expression RPARAN
+    quantifier      = QUANTIFIER_RE _
+    reference       = LABEL !COLON
+    literal         = (SPACELESS_LITERAL / BINARY_LITERAL / OCTAL_LITERAL / HEX_LITERAL) _
+    attr_label      = LABEL
     _               = meaninglessness*
     meaninglessness = blanks / comment
-    blanks          = hspaces / vspaces
-    number          = float / integer
+    blanks          = HSPACES / VSPACES
+    number          = FLOAT / INTEGER
+    comment         = SHARP HINT? LINE 
 
     # regular expressions and basic terms
-    digits          = ~"[0-9]+" _
-    spaceless_literal= ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is /
+    DIGITS          = ~"[0-9]+" _
+    SPACELESS_LITERAL= ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is /
                         ~"u?r?'[^'\\\\]*(?:\\\\.[^'\\\\]*)*'"is
-    binary_literal  = ~"b\"[01]*\""is
-    octal_literal   = ~"o\"[0-7]*\""is
-    hex_literal     = ~"x\"[0-9a-fA-F]*\""is
-    quantifier_re   = ~"[*+?]"
-    label           = ~"[a-zA-Z_][a-zA-Z_0-9]*" _
-    hspaces         = ~r"[ \t]+"
-    vspaces         = ~r"[\r\n\f\v]+"
-    comment         = "#" ~"hint\s*:"? ~r"[^\r\n]*"
-    colon           = ":" _
-    comma           = "," _
-    semicolon       = ";" _
-    left            = "=>" _
-    right           = "<=" _
-    integer         = ~r"[-+]?[0-9]+" _
-    float           = ~r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?" _
+    BINARY_LITERAL  = ~"b\"[01]*\""is
+    OCTAL_LITERAL   = ~"o\"[0-7]*\""is
+    HEX_LITERAL     = ~"x\"[0-9a-fA-F]*\""is
+    QUANTIFIER_RE   = ~"[*+?]"
+    LABEL           = ~"[a-zA-Z_][a-zA-Z_0-9]*" _
+    HSPACES         = ~r"[ \t]+"
+    VSPACES         = ~r"[\r\n\f\v]+"
+    SHARP           = "#"
+    TILDE           = "~"
+    LPARAN          = "(" _
+    AT              = "@" _
+    RPARAN          = ")" _
+    SLASH           = "/" _
+    VBAR            = "|" _
+    HINT            = ~"hint\s*:"
+    LINE            = ~r"[^\r\n]*"
+    COLON           = ":" _
+    COMMA           = "," _
+    SEMICOLON       = ";" _
+    LEFT            = "=>" _
+    RIGHT           = "<=" _
+    LANGLE          = "<" _
+    RANGLE          = ">" _
+    LBRACE          = "{" _
+    RBRACE          = "}" _
+    INTEGER         = ~r"[-+]?[0-9]+" _
+    FLOAT           = ~r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?" _
 ''')
 
-new_syntax = Grammar(new_notation)
+grammar_syntax = Grammar(grammar_notation)
 
 DEBUG = False
 
@@ -214,7 +228,7 @@ class Sampler(NodeVisitor):
     def _not(self, node, items):
         return []
 
-    def visit_label(self, node, items):
+    def visit_LABEL(self, node, items):
         return [Label(node.text.strip())]
 
     def visit_reference(self, node, items):
@@ -223,23 +237,23 @@ class Sampler(NodeVisitor):
     def visit_regex(self, node, items):
         return [lego_parse(eval(node.children[1].text))]
 
-    def visit_spaceless_literal(self, node, items):
+    def visit_SPACELESS_LITERAL(self, node, items):
         return [LiteralString(eval(node.text))]
 
-    def visit_binary_literal(self, node, items):
+    def visit_BINARY_LITERAL(self, node, items):
         return [LiteralBin(node.text[2:-1])]
 
-    def visit_octal_literal(self, node, items):
+    def visit_OCTAL_LITERAL(self, node, items):
         return [LiteralOct(node.text[2:-1])]
 
-    def visit_hex_literal(self, node, items):
+    def visit_HEX_LITERAL(self, node, items):
         return [LiteralHex(node.text[2:-1])]
 
     def visit_literal(self, node, items):
         return items[0]
 
     def visit_parenthesized(self, node, items):
-        return items[2]
+        return items[1]
 
     def visit_blanks(self, node, items):
         ch = ''
@@ -291,7 +305,7 @@ class Sampler(NodeVisitor):
         return terms
 
     def visit_expression_itemnum(self, node, items):
-        return ["@", int(node.children[2].text)]
+        return ["@", int(node.children[1].text)]
 
     def visit_attribute_items(self, node, items):
         return [items[0], items[1]+[i for i in items[2] if i != ","]]
@@ -315,7 +329,7 @@ class Sampler(NodeVisitor):
                 attrs[name][num] = []
             attrs[name][num].extend(opts)
 
-        for flag in items[2]:
+        for flag in items[1]:
             if flag == ";":
                 _getitems()
             else:
@@ -331,7 +345,7 @@ class Sampler(NodeVisitor):
     def visit_expression_attributes_angle(self, node, items):
         return self._attr_brace(node, items, "action", AngleAttribute)
 
-    def visit_quantifier_re(self, node, items):
+    def visit_QUANTIFIER_RE(self, node, items):
         return [node.text]
 
     def visit_quantifier(self, node, items):
@@ -345,6 +359,9 @@ class Sampler(NodeVisitor):
         elif items[1][0] == "*":
             return [ZeroOrMore(items[0])]
 
+    def visit_term(self, node, items):
+        return items[0]
+
     def visit_firstmatched(self, node, items):
         return [FirstmatchOf(node, [items[0]]+items[1])]
 
@@ -355,7 +372,7 @@ class Sampler(NodeVisitor):
         return [AnymatchOf(node, [items[0]]+items[1])]
 
     def visit_or_term(self, node, items):
-        return [items[2]]
+        return [items[1]]
 
     def visit_rule(self, node, items):
         if items[4]:
@@ -497,14 +514,12 @@ class Generator(object):
                 yield [z for z in reversed([y.copy() for x,y in bucket])]
 
 def translate(custom_grammar):
-    grammar_tree = new_syntax.parse(custom_grammar)
+    grammar_tree = grammar_syntax.parse(custom_grammar)
     for idx, s in enumerate(Sampler().visit(grammar_tree)):
-        #if idx ==10: break
         print(''.join(s))
-        #import pdb; pdb.set_trace()
+    #parglare_grammar = ParglareConversion().visit(grammar_tree)
     #import pdb; pdb.set_trace()
-    #cgrammar = CanonicalGrammar().visit(parsetree)
-    #parglare_grammar = translate_to_parglare(cgrammar)
+    
     #parglare_parsers = generate_parglare_parsers(parglare_grammar)
     #if multiple parsers, then take one sample from generations
     #and parse using the parsers and see where they diverge
