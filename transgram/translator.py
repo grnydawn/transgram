@@ -228,6 +228,12 @@ class Sampler(NodeVisitor):
     def _not(self, node, items):
         return []
 
+    def visit_COMMA(self, node, items):
+        return items[0]
+
+    def visit_SEMICOLON(self, node, items):
+        return items[0]
+
     def visit_LABEL(self, node, items):
         return [Label(node.text.strip())]
 
@@ -315,10 +321,10 @@ class Sampler(NodeVisitor):
         attrs = {}
         semicolon_items = []
 
-        def _getitems():
+        def _getitems(sitems):
             name = default_name,
             num = 0
-            attr_name, opts = semicolon_items
+            attr_name, opts = sitems
             if attr_name:
                 name = attr_name[0].name.strip()
                 if "@" in attr_name:
@@ -328,14 +334,15 @@ class Sampler(NodeVisitor):
             if num not in attrs[name]:
                 attrs[name][num] = []
             attrs[name][num].extend(opts)
+            del sitems[:]
 
         for flag in items[1]:
             if flag == ";":
-                _getitems()
+                _getitems(semicolon_items)
             else:
                 semicolon_items.append(flag)
         if semicolon_items:
-            _getitems()
+            _getitems(semicolon_items)
 
         return [attr_class(attrs)]
 
