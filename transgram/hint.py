@@ -14,12 +14,17 @@ hint_notation = (r'''
     sample_directive = "sample" _1 sample_clauses
     sample_clauses  = sample_clause comma_sample_clause*
     comma_sample_clause = comma sample_clause
-    sample_clause  = maxloops_clause / maxrepeats_clause
+    sample_clause  = maxloops_clause / maxrepeats_clause / randomize_clause
     maxloops_clause  = "maxloops" _ paren_int_expr
     maxrepeats_clause= "maxrepeats" _ paren_int_expr
+    randomize_clause = "randomize" _ paren_int_expr
 
     # common expressions
     paren_int_expr   = "(" _ int_expr ")" _
+    paren_literal_expr   = "(" _ literal_expr ")" _
+    literal_expr     = spaceless_literal _
+    spaceless_literal= ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is /
+                        ~"u?r?'[^'\\\\]*(?:\\\\.[^'\\\\]*)*'"is
     int_expr         = product_expr int_expr_opt?
     int_expr_opt     = ('+' / '-') _ product_expr
     product_expr     = power_expr product_expr_opt?
@@ -139,6 +144,10 @@ class Hint(NodeVisitor):
         return []
 
     def visit_maxrepeats_clause(self, node, items):
+        self.hints["sample"][items[0][0]] = items[2][0]
+        return []
+
+    def visit_randomize_clause(self, node, items):
         self.hints["sample"][items[0][0]] = items[2][0]
         return []
 

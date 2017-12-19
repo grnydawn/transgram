@@ -251,6 +251,7 @@ class Sampler(NodeVisitor):
             return []
 
     def visit_comment(self, node, items):
+        # TODO: add start and stop data for line checking
         if items[1]:
             hint_string = node.children[2].text.strip()
             if hint_string and hint_string[-1] == "\\":
@@ -399,7 +400,7 @@ class Sampler(NodeVisitor):
 
 
 class Generator(object):
-    def __init__(self, rules, start_rule, maxloops=5, maxrepeats=2, randomize=None):
+    def __init__(self, rules, start_rule, maxloops=5, maxrepeats=2, randomize=1):
         self.rules = dict(rules)
         self.start_rule = start_rule
         self.maxloops = maxloops
@@ -408,7 +409,7 @@ class Generator(object):
 
     def generate(self):
 
-        if self.randomize is True:
+        if self.randomize > 0:
             random.seed(None)
         else:
             random.seed(len(self.start_rule))
@@ -417,7 +418,7 @@ class Generator(object):
         while start_rules:
             if DEBUG: print("Rules", start_rules)
 
-            if self.randomize is True:
+            if self.randomize > 3:
                 start_rule_stack = start_rules.pop(random.randint(0,len(start_rules)-1))
             else:
                 start_rule_stack = start_rules.pop(0)
@@ -447,9 +448,9 @@ class Generator(object):
                 elif isinstance(item, FirstmatchOf):
                     if DEBUG: print("FirstmatchOf", )
                     items = item.items[:]
-                    if self.randomize is True:
+                    if self.randomize > 2:
                         random.shuffle(items)
-                    elif self.randomize is None:
+                    elif self.randomize > 1:
                         for _ in range(random.randint(0,len(items))):
                             items.append(items.pop(0))
                     for _i in items[1:]:
@@ -461,7 +462,7 @@ class Generator(object):
                 elif isinstance(item, AnymatchOf):
                     if DEBUG: print("AnymatchOf", )
                     shuffled = item.items[:]
-                    if not self.randomize is False:
+                    if self.randomize > 0:
                         random.shuffle(shuffled)
                     for _i in shuffled[1:]:
                         if DEBUG: print("_Item", _i)

@@ -1,4 +1,4 @@
-#hint : sample maxloops(3), maxrepeats(2)
+#hint : sample maxloops(5), maxrepeats(2), randomize(1)
 E   :
     ('(' E ')')
     / (E '^' E<=)
