@@ -1,0 +1,77 @@
+##-*- coding: utf-8 -*-
+#from __future__ import absolute_import, division, print_function, unicode_literals
+
+from collections import OrderedDict
+from .nodes import NodeVisitor
+from .expressions import (Literal, Regex)
+
+class Expr(object):
+    def __init__(self, items=[]):
+        self.items = []
+        for item in items:
+            if isinstance(item, Expr):
+                self.items.extend(item.items)
+            elif isinstance(item, list):
+                import pdb; pdb.set_trace()
+            else:
+                self.items.append(item)
+        self.optional = False
+
+    def additem(self, item):
+        self.items.append(item)
+
+    def additems(self, items):
+        self.items.extend(items)
+
+class ParglareConversion(NodeVisitor):
+
+    def __init__(self):
+        pass
+
+    
+    def generic_visit(self, node, items):
+        if isinstance(node.expr, Literal):
+            return [Expr([node.text])]
+        elif isinstance(node.expr, Regex):
+            return [Expr(["/%s/"%node.expr.re.pattern])]
+        elif hasattr(node.expr, 'name') and node.expr.name:
+            name = node.expr.name
+            if name[0].isupper():
+                import pdb; pdb.set_trace()
+            else:
+                import pdb; pdb.set_trace()
+        elif items:
+            expr = Expr()
+            for item in items:
+                expr.additems(item)
+            clsname = node.expr.__class__.__name__.lower()
+            #return getattr(self, '_'+clsname)(node, items)
+            if clsname == "optional":
+                expr.optional = True
+            return [expr]
+        else:
+            return []
+
+    def visit_lparan(self, node, items):
+        return [Expr(["("])] 
+
+    def visit_colon(self, node, items):
+        return [Expr([":"])] 
+
+    def visit_label(self, node, items):
+        return [Expr([node.text.strip()])] 
+
+    def visit__(self, node, items):
+        e = Expr()
+        for item in items:
+            e.additems(item)
+        return [e]
+
+    def visit_meaninglessness(self, node, items):
+        return items[0]
+
+    def visit_blanks(self, node, items):
+        return [Expr([node.text])]
+
+    def visit_comment(self, node, items):
+        return []

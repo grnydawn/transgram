@@ -15,74 +15,92 @@ grammar_notation = (r'''
 
     # high-level rules
     rules           = _ rule*
-    rule            = LABEL expression_attributes_angle? COLON expression expression_attributes_brace?
+    rule            = label expression_attributes_angle? colon expression expression_attributes_brace?
     expression      = firstmatched / ored / sequence / term
     firstmatched    = term firstmatch_term+
-    firstmatch_term = (SLASH ored) / (SLASH term)
+    firstmatch_term = (slash ored) / (slash term)
     ored            = term or_term+
-    or_term         = VBAR term
-    sequence        = LEFT? term term+ RIGHT? expression_attributes_brace?
+    or_term         = vbar term
+    sequence        = left? term term+ right? expression_attributes_brace?
     term            = quantified / atom
 
     # expression attributes
-    expression_attributes_angle = LANGLE attribute_parts? RANGLE
-    expression_attributes_brace = LBRACE attribute_parts? RBRACE
-    semicolon_separated_part = SEMICOLON attribute_items
+    expression_attributes_angle = langle attribute_parts? rangle
+    expression_attributes_brace = lbrace attribute_parts? rbrace
+    semicolon_separated_part = semicolon attribute_items
     attribute_parts = attribute_items semicolon_separated_part*
-    attribute_name  = attr_label expression_itemnum? COLON
-    expression_itemnum= AT DIGITS
-    comma_separated_term = COMMA comma_term
+    attribute_name  = attr_label expression_itemnum? colon
+    expression_itemnum= at digits
+    comma_separated_term = comma comma_term
     attribute_items = attribute_name? comma_term comma_separated_term*
-    comma_term      = LABEL / literal / number / regex / paren_comma_term
-    paren_comma_term = LPARAN comma_term RPARAN
+    comma_term      = label / literal / number / regex / paren_comma_term
+    paren_comma_term = lparan comma_term rparan
 
     # terms
     quantified      = atom quantifier
     atom            = literal / reference / regex / parenthesized
     #regex           = TILDE SPACELESS_LITERAL ~"[ilmsux]*"i _
     regex           = TILDE SPACELESS_LITERAL _
-    parenthesized   = LPARAN expression RPARAN
-    quantifier      = QUANTIFIER_RE _
-    reference       = LABEL !COLON
+    parenthesized   = lparan expression rparan
+    quantifier      = QUANTIFIER _
+    reference       = label !colon
     literal         = (SPACELESS_LITERAL / BINARY_LITERAL / OCTAL_LITERAL / HEX_LITERAL) _
-    attr_label      = LABEL
+    attr_label      = label
     _               = meaninglessness*
     meaninglessness = blanks / comment
     blanks          = HSPACES / VSPACES
-    number          = FLOAT / INTEGER
+    number          = float / integer
     comment         = SHARP HINT? LINE 
+    digits          = DIGITS _
+    label           = LABEL _
+    lparan          = LPARAN _
+    rparan          = RPARAN _
+    at              = AT _
+    slash           = SLASH _
+    vbar            = VBAR _
+    colon           = COLON _
+    semicolon       = SEMICOLON _
+    comma           = COMMA _
+    left            = LEFT _
+    right           = RIGHT _
+    langle          = LANGLE _
+    rangle          = RANGLE _
+    lbrace          = LBRACE _
+    rbrace          = RBRACE _
+    integer         = INTEGER _
+    float           = FLOAT _
 
-    # regular expressions and basic terms
-    DIGITS          = ~"[0-9]+" _
+    # regular expressions
+    DIGITS          = ~"[0-9]+"
     SPACELESS_LITERAL= ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is /
                         ~"u?r?'[^'\\\\]*(?:\\\\.[^'\\\\]*)*'"is
     BINARY_LITERAL  = ~"b\"[01]*\""is
     OCTAL_LITERAL   = ~"o\"[0-7]*\""is
     HEX_LITERAL     = ~"x\"[0-9a-fA-F]*\""is
-    QUANTIFIER_RE   = ~"[*+?]"
-    LABEL           = ~"[a-zA-Z_][a-zA-Z_0-9]*" _
+    QUANTIFIER      = ~"[*+?]"
+    LABEL           = ~"[a-zA-Z_][a-zA-Z_0-9]*"
     HSPACES         = ~r"[ \t]+"
     VSPACES         = ~r"[\r\n\f\v]+"
     SHARP           = "#"
     TILDE           = "~"
-    LPARAN          = "(" _
-    AT              = "@" _
-    RPARAN          = ")" _
-    SLASH           = "/" _
-    VBAR            = "|" _
+    LPARAN          = "("
+    AT              = "@"
+    RPARAN          = ")"
+    SLASH           = "/"
+    VBAR            = "|"
     HINT            = ~"hint\s*:"
     LINE            = ~r"[^\r\n]*"
-    COLON           = ":" _
-    COMMA           = "," _
-    SEMICOLON       = ";" _
-    LEFT            = "=>" _
-    RIGHT           = "<=" _
-    LANGLE          = "<" _
-    RANGLE          = ">" _
-    LBRACE          = "{" _
-    RBRACE          = "}" _
-    INTEGER         = ~r"[-+]?[0-9]+" _
-    FLOAT           = ~r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?" _
+    COLON           = ":"
+    COMMA           = ","
+    SEMICOLON       = ";"
+    LEFT            = "=>"
+    RIGHT           = "<="
+    LANGLE          = "<"
+    RANGLE          = ">"
+    LBRACE          = "{"
+    RBRACE          = "}"
+    INTEGER         = ~r"[-+]?[0-9]+"
+    FLOAT           = ~r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?"
 ''')
 
 grammar_syntax = Grammar(grammar_notation)
@@ -524,8 +542,10 @@ def translate(custom_grammar):
     grammar_tree = grammar_syntax.parse(custom_grammar)
     for idx, s in enumerate(Sampler().visit(grammar_tree)):
         print(''.join(s))
-    #parglare_grammar = ParglareConversion().visit(grammar_tree)
-    #import pdb; pdb.set_trace()
+    parglare_converter = ParglareConversion()
+    parglare_converter.visit(grammar_tree)
+    parglare_grammar = parglare_converter.grammar()
+    import pdb; pdb.set_trace()
     
     #parglare_parsers = generate_parglare_parsers(parglare_grammar)
     #if multiple parsers, then take one sample from generations
