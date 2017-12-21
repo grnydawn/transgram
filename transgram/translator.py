@@ -7,7 +7,7 @@ from .nodes import NodeVisitor
 from .lego import parse as lego_parse, pattern
 from .hint import Hint
 #from .parglare import ParglareConversion
-from .converter import ParglareConverter
+from .converter import ParglareConverter, generate_parglare_parser
 
 DEBUG = True
 
@@ -575,11 +575,12 @@ def translate(custom_grammar):
     grammar_tree = grammar_syntax.parse(custom_grammar)
     for idx, s in enumerate(Sampler().visit(grammar_tree)):
         print(''.join(s))
-    #parglare_converter = ParglareConverter()
-    #parglare_converter.visit(grammar_tree)
-    #parglare_grammar = parglare_converter.grammar()
-    #print(parglare_grammar)
-    #import pdb; pdb.set_trace()
+    parglare_converter = ParglareConverter()
+    parglare_converter.visit(grammar_tree)
+    parglare_grammar = parglare_converter.grammar()
+    print(parglare_grammar)
+    parser = generate_parglare_parser(parglare_grammar)
+    import pdb; pdb.set_trace()
     
     #parglare_parsers = generate_parglare_parsers(parglare_grammar)
     #if multiple parsers, then take one sample from generations

@@ -4,6 +4,11 @@
 from collections import OrderedDict
 from ..nodes import NodeVisitor
 from ..expressions import Literal
+import sys
+sys.path.append("/home/ashley/repos/github/click")
+sys.path.append("/home/ashley/repos/github/parglare")
+
+from parglare import Grammar, GLRParser
 
 class ParglareConverter(NodeVisitor):
 
@@ -18,7 +23,7 @@ class ParglareConverter(NodeVisitor):
             l.append("%s :\n%s"%(name, self.TAB))
             for term in rule:
                 if term == "|":
-                    l.append(" %s\n%s"%(term,self.TAB))
+                    l.append(" \n%s%s"%(self.TAB, term))
                 elif term == ";":
                     l.append(" %s\n"%term)
                 else:
@@ -47,7 +52,8 @@ class ParglareConverter(NodeVisitor):
                 term = term.replace("__priority__", "%d"%P)
                 BAR = False
             elif BAR:
-                terms.append(" {%d, left}"%P)
+                if len(term)<2 or term[0]!="/" and term[-1]!="/":
+                    terms.append(" {left, %d}"%P)
                 BAR = False
             terms.append(term)
         self.rules[items[0][0]] = [t for t in reversed(terms)]
@@ -88,7 +94,7 @@ class ParglareConverter(NodeVisitor):
         direct = "left"
         if items[3]:
             direct = "right"
-        return items[1]+items[2]+[" {__priority__, %s}"%direct]
+        return items[1]+items[2]+[" {%s, __priority__}"%direct]
 
     def visit_label(self, node, items):
         return [node.text.strip()]
@@ -98,3 +104,8 @@ class ParglareConverter(NodeVisitor):
 
     def visit_literal(self, node, items):
         return [node.text.strip()]
+
+def generate_parglare_parser(grammar):
+    g = Grammar.from_string(grammar)
+    parser = GLRParser(g)
+    return parser
