@@ -6,9 +6,10 @@ from .grammar import Grammar
 from .nodes import NodeVisitor
 from .lego import parse as lego_parse, pattern
 from .hint import Hint
-from .parglare import ParglareConversion
+#from .parglare import ParglareConversion
+from .converter import ParglareConverter
 
-DEBUG = False
+DEBUG = True
 
 grammar_notation = (r'''
     # notation for context-free and context-sensitive grammars
@@ -112,6 +113,14 @@ DEBUG = False
 class Internal(object):
     pass
 
+class Empty(Internal):
+
+    def __iter__(self):
+        yield ''
+
+    def copy(self):
+        return self.__class__()
+
 class Reference(Internal):
     def __init__(self, ref):
         self.name = ref
@@ -165,7 +174,7 @@ class Quantified(Internal):
 
 class Optional(Quantified):
     def __init__(self, item):
-        super(Optional, self).__init__(item, 0, math.inf)
+        super(Optional, self).__init__(item, 0, 1)
 
 class ZeroOrMore(Quantified):
     def __init__(self, item):
@@ -227,6 +236,7 @@ class Sampler(NodeVisitor):
     def _sequence(self, node, items):
         l = []
         for item in items:
+            if item is None: import pdb; pdb.set_trace()
             l.extend(item)
         return l
 
@@ -374,7 +384,7 @@ class Sampler(NodeVisitor):
         return [node.text]
 
     def visit_quantifier(self, node, items):
-        return items[0]
+        return [node.text.strip()]
 
     def visit_quantified(self, node, items):
         if items[1][0] == "?":
@@ -383,6 +393,8 @@ class Sampler(NodeVisitor):
             return [OneOrMore(items[0])]
         elif items[1][0] == "*":
             return [ZeroOrMore(items[0])]
+        else:
+            import pdb; pdb.set_trace()
 
     def visit_term(self, node, items):
         return items[0]
@@ -477,16 +489,19 @@ class Generator(object):
                     else:
                         path[item.name] = self.maxloops
                     if path[item.name] > 0:
-                        start_rule_stack.extend([(dict(path),i) for i in self.rules[item.name]])
+                        start_rule_stack.extend([(path,i) for i in self.rules[item.name]])
                     else:
                         bucket = []
                         start_rule_stack = []
+                elif isinstance(item, Empty):
+                    if DEBUG: print("Empty")
+                    bucket.append((path, item))
                 elif isinstance(item, Literal):
                     if DEBUG: print("Literal", item.elements)
-                    bucket.append((dict(path), item))
+                    bucket.append((path, item))
                 elif isinstance(item, pattern):
                     if DEBUG: print("RE", str(item))
-                    bucket.append((dict(path), item))
+                    bucket.append((path, item))
                 elif isinstance(item, FirstmatchOf):
                     if DEBUG: print("FirstmatchOf", )
                     items = item.items[:]
@@ -497,10 +512,10 @@ class Generator(object):
                             items.append(items.pop(0))
                     for _i in items[1:]:
                         if DEBUG: print("_Item", _i)
-                        _pair = [(path, p) for p in _i]
+                        _pair = [(dict(path), p) for p in _i]
                         bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                         start_rules.append(start_rule_stack[:]+_pair+bucket_copy)
-                    start_rule_stack.extend([(path,i) for i in items[0]])
+                    start_rule_stack.extend([(dict(path),i) for i in items[0]])
                 elif isinstance(item, AnymatchOf):
                     if DEBUG: print("AnymatchOf", )
                     shuffled = item.items[:]
@@ -508,30 +523,48 @@ class Generator(object):
                         random.shuffle(shuffled)
                     for _i in shuffled[1:]:
                         if DEBUG: print("_Item", _i)
-                        _pair = [(path, p) for p in _i]
+                        _pair = [(dict(path), p) for p in _i]
                         bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                         start_rules.append(start_rule_stack[:]+_pair+bucket_copy)
-                    start_rule_stack.extend([(path,i) for i in shuffled[0]])
+                    start_rule_stack.extend([(dict(path),i) for i in shuffled[0]])
 
                 elif isinstance(item, Optional):
                     if DEBUG: print("Optional", item)
+                    buf = []
                     bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
-                    start_rules.append(start_rule_stack[:]+item.item[:]+bucket_copy)
+                    empty = (dict(path), Empty())
+                    buf.append(start_rule_stack[:]+[empty]+bucket_copy)
+                    bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
+                    newitem = [(dict(path), p) for p in item.item]
+                    buf.append(start_rule_stack[:]+newitem+bucket_copy)
+                    if self.randomize > 0:
+                        random.shuffle(buf)
+                    for i in buf:
+                        start_rules.append(i)
                 elif isinstance(item, ZeroOrMore):
                     if DEBUG: print("ZeroOrMore", item)
                     buf = []
-                    for _ in range(self.maxrepeats):
-                        buf.extend([(path, i) for i in item.item])
+                    loc = random.randint(0, self.maxrepeats)
+                    empty = (dict(path), Empty())
+                    bucket_copy_empty = [(x,y.copy()) for x,y in reversed(bucket)]
+                    empty_stack = start_rule_stack[:]+[empty]+bucket_copy_empty
+                    if self.randomize == 0 or loc == 0:
+                        start_rules.append(empty_stack)
+                    for idx in range(self.maxrepeats):
+                        buf.extend([(dict(path), i) for i in item.item])
                         bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                         start_rules.append(start_rule_stack[:]+buf[:]+bucket_copy)
+                        if self.randomize > 0 and loc == idx:
+                            start_rules.append(empty_stack)
+
                 elif isinstance(item, OneOrMore):
                     if DEBUG: print("OneOrMore", item)
-                    buf = [(path, i) for i in item.item]
-                    for _ in range(self.maxrepeats-1):
-                        buf += [(path, i) for i in item.item]
+                    buf = [(dict(path), i) for i in item.item]
+                    for _ in range(self.maxrepeats):
+                        buf += [(dict(path), i) for i in item.item]
                         bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                         start_rules.append(start_rule_stack[:]+buf[:]+bucket_copy)
-                    start_rule_stack.extend([(path,i) for i in item.item])
+                    start_rule_stack.extend([(dict(path),i) for i in item.item])
                 else:
                     import pdb; pdb.set_trace()
                     pass
@@ -542,10 +575,11 @@ def translate(custom_grammar):
     grammar_tree = grammar_syntax.parse(custom_grammar)
     for idx, s in enumerate(Sampler().visit(grammar_tree)):
         print(''.join(s))
-    parglare_converter = ParglareConversion()
-    parglare_converter.visit(grammar_tree)
-    parglare_grammar = parglare_converter.grammar()
-    import pdb; pdb.set_trace()
+    #parglare_converter = ParglareConverter()
+    #parglare_converter.visit(grammar_tree)
+    #parglare_grammar = parglare_converter.grammar()
+    #print(parglare_grammar)
+    #import pdb; pdb.set_trace()
     
     #parglare_parsers = generate_parglare_parsers(parglare_grammar)
     #if multiple parsers, then take one sample from generations

@@ -1,16 +1,29 @@
 ##-*- coding: utf-8 -*-
 #from __future__ import absolute_import, division, print_function, unicode_literals
 
-from .nodes import NodeVisitor
-from .expressions import Literal
+from collections import OrderedDict
+from ..nodes import NodeVisitor
+from ..expressions import Literal
 
-class ParglareConversion(NodeVisitor):
+class ParglareConverter(NodeVisitor):
+
+    TAB = ' '*4
 
     def __init__(self):
-        self.rules = {}
+        self.rules = OrderedDict()
     
     def grammar(self):
-        import pdb; pdb.set_trace()
+        l = []
+        for name, rule in self.rules.items():
+            l.append("%s :\n%s"%(name, self.TAB))
+            for term in rule:
+                if term == "|":
+                    l.append(" %s\n%s"%(term,self.TAB))
+                elif term == ";":
+                    l.append(" %s\n"%term)
+                else:
+                    l.append(" %s"%term)
+        return ''.join(l)
 
     def generic_visit(self, node, items):
         if isinstance(node.expr, Literal):
@@ -81,7 +94,7 @@ class ParglareConversion(NodeVisitor):
         return [node.text.strip()]
 
     def visit_regex(self, node, items):
-        return ["/%s/"%node.text.strip()[1:-1]]
+        return ["/%s/"%node.text.strip()[2:-1]]
 
     def visit_literal(self, node, items):
         return [node.text.strip()]
