@@ -573,15 +573,31 @@ class Generator(object):
 
 def translate(custom_grammar):
     grammar_tree = grammar_syntax.parse(custom_grammar)
-    for idx, s in enumerate(Sampler().visit(grammar_tree)):
-        print(''.join(s))
     parglare_converter = ParglareConverter()
     parglare_converter.visit(grammar_tree)
     parglare_grammar = parglare_converter.grammar()
-    print(parglare_grammar)
+    #print(parglare_grammar)
     parser = generate_parglare_parser(parglare_grammar)
-    import pdb; pdb.set_trace()
-    
+    maxcases = 100
+    for idx, s in enumerate(Sampler().visit(grammar_tree)):
+        if idx >= maxcases:
+            print("Passed %d cases"%maxcases)
+            break
+        text = ''.join(s)
+        print("INPUT: %s"%text)
+        parsed = parser.parse(text)
+        ntree = len(parsed)
+        print("PARSED: %s"%str(parsed[0]))
+        for p in parsed[1:]:
+            print("        %s"%str(p))
+        print("")
+        if ntree > 1:
+            print('!!!!! Warning: ambiguous grammar: "%d" parse trees !!!!!'%ntree)
+            break
+        #import pdb; pdb.set_trace()
+    if idx != maxcases:
+        print("Passed %d cases"%idx)
+
     #parglare_parsers = generate_parglare_parsers(parglare_grammar)
     #if multiple parsers, then take one sample from generations
     #and parse using the parsers and see where they diverge

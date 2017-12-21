@@ -8,7 +8,18 @@ import sys
 sys.path.append("/home/ashley/repos/github/click")
 sys.path.append("/home/ashley/repos/github/parglare")
 
-from parglare import Grammar, GLRParser
+from parglare import Grammar, GLRParser, Parser
+
+# TODO1: debugging with samples having parentheses
+# TODO2: regex instance variable ~label. Two step parser generation to decide ~label
+# TODO3: Context class having rule_stack and regex instance variable resolutions
+# TODO2-1: General instance variable whose content is used to choose proper expression
+# TODO4: tree reordering or user-directed restructuring
+# TODO5: Need to come up with mixing code possibly related with TODO4(resolve: cluttred and confused)
+# TODO6: Mixing grammar such as c code having assembly code(like Perl6?)
+# TODO7: Keyword support that having word boundary
+# TODO8: How to introduce assertions ( & and ! in PEG)?
+# TODOX: DO magical things with easily understandable ways
 
 class ParglareConverter(NodeVisitor):
 
@@ -53,7 +64,7 @@ class ParglareConverter(NodeVisitor):
                 BAR = False
             elif BAR:
                 if len(term)<2 or term[0]!="/" and term[-1]!="/":
-                    terms.append(" {left, %d}"%P)
+                    terms.append(" {%d}"%P)
                 BAR = False
             terms.append(term)
         self.rules[items[0][0]] = [t for t in reversed(terms)]
@@ -91,10 +102,12 @@ class ParglareConverter(NodeVisitor):
 
     def visit_sequence(self, node, items):
         assert not (items[0] and items[3])
-        direct = "left"
+        direct = ""
+        if items[0]:
+            direct = "left, "
         if items[3]:
-            direct = "right"
-        return items[1]+items[2]+[" {%s, __priority__}"%direct]
+            direct = "right, "
+        return items[1]+items[2]+[" {%s__priority__}"%direct]
 
     def visit_label(self, node, items):
         return [node.text.strip()]
@@ -108,4 +121,5 @@ class ParglareConverter(NodeVisitor):
 def generate_parglare_parser(grammar):
     g = Grammar.from_string(grammar)
     parser = GLRParser(g)
+    #parser = Parser(g)
     return parser

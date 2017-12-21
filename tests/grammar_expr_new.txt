@@ -1,8 +1,8 @@
-#hint : sample maxloops(2), maxrepeats(2), randomize(0)
+#hint : sample maxloops(4), maxrepeats(2), randomize(4)
 E   :
-    ('(' E ')')
+    (=>'(' E ')')
     / (E '^' E<=)
-    / (=>E '*' E) | (E '/' E {string@3:" x "})
-    / (E '+' E) | (E '-' E)
+    / (=>E '*' E) | (=>E '/' E)
+    / (=>E '+' E) | (=>E '-' E)
     / number
-number: ~"[\d]+" {string: ~" (1|2) "} #hint sample maxrepeats(2)
+number: ~"[\d]+" {string: ~" (1) "} #hint sample maxrepeats(2)
