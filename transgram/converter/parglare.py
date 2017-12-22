@@ -120,6 +120,6 @@ class ParglareConverter(NodeVisitor):
 
 def generate_parglare_parser(grammar):
     g = Grammar.from_string(grammar)
-    parser = GLRParser(g)
+    parser = GLRParser(g, ws=None)
     #parser = Parser(g)
     return parser

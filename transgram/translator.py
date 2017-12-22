@@ -9,6 +9,8 @@ from .hint import Hint
 #from .parglare import ParglareConversion
 from .converter import ParglareConverter, generate_parglare_parser
 
+# TODO1 : specifying specific sample patterns to generate
+
 DEBUG = True
 
 grammar_notation = (r'''
@@ -21,7 +23,7 @@ grammar_notation = (r'''
     firstmatched    = term firstmatch_term+
     firstmatch_term = (slash ored) / (slash term)
     ored            = term or_term+
-    or_term         = vbar term
+    or_term         = vbar (empty / term)
     sequence        = left? term term+ right? expression_attributes_brace?
     term            = quantified / atom
 
@@ -53,6 +55,7 @@ grammar_notation = (r'''
     number          = float / integer
     comment         = SHARP HINT? LINE 
     digits          = DIGITS _
+    empty           = EMPTY _
     label           = LABEL _
     lparan          = LPARAN _
     rparan          = RPARAN _
@@ -89,6 +92,7 @@ grammar_notation = (r'''
     RPARAN          = ")"
     SLASH           = "/"
     VBAR            = "|"
+    EMPTY           = "EMPTY"
     HINT            = ~"hint\s*:"
     LINE            = ~r"[^\r\n]*"
     COLON           = ":"
@@ -409,6 +413,12 @@ class Sampler(NodeVisitor):
         return [AnymatchOf(node, [items[0]]+items[1])]
 
     def visit_or_term(self, node, items):
+        import pdb; pdb.set_trace()
+        return [items[1]]
+
+    def visit_or_term(self, node, items):
+        if items[1][0] == "EMPTY":
+            items[1] = [Empty()]
         return [items[1]]
 
     def visit_rule(self, node, items):
@@ -571,6 +581,33 @@ class Generator(object):
             if bucket:
                 yield [z for z in reversed([y.copy() for x,y in bucket])]
 
+def difftrees1(*trees):
+    if len(trees) <= 1:
+        return
+    classcheck = [t.__class__ for t in trees]
+    if any(x != classcheck[0] for x in classcheck):
+        print("DIFF POINT: ", trees)
+        return
+    if classcheck[0] != list:
+        return
+
+    lencheck = [len(t) for t in trees]
+    if any(x != lencheck[0] for x in lencheck):
+        print("DIFF POINT: ", trees)
+        return
+
+    for idx in range(len(trees[0])):
+        newtrees = [t[idx] for t in  trees]
+        difftrees(*newtrees)
+
+def showtrees(L, indent=""):
+    for i in L:
+        if isinstance(i,str):
+            print (indent, 'Root: ', i)
+        else:
+            print (indent, '--Subtree: ', i)
+            showtrees(i, indent+"    ")
+
 def translate(custom_grammar):
     grammar_tree = grammar_syntax.parse(custom_grammar)
     parglare_converter = ParglareConverter()
@@ -581,7 +618,6 @@ def translate(custom_grammar):
     maxcases = 100
     for idx, s in enumerate(Sampler().visit(grammar_tree)):
         if idx >= maxcases:
-            print("Passed %d cases"%maxcases)
             break
         text = ''.join(s)
         print("INPUT: %s"%text)
@@ -593,9 +629,10 @@ def translate(custom_grammar):
         print("")
         if ntree > 1:
             print('!!!!! Warning: ambiguous grammar: "%d" parse trees !!!!!'%ntree)
+            #showtrees(parsed)
             break
         #import pdb; pdb.set_trace()
-    if idx != maxcases:
+    if idx == maxcases:
         print("Passed %d cases"%idx)
 
     #parglare_parsers = generate_parglare_parsers(parglare_grammar)
