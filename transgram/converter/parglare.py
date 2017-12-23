@@ -2,8 +2,8 @@
 #from __future__ import absolute_import, division, print_function, unicode_literals
 
 from collections import OrderedDict
-from ..nodes import NodeVisitor
-from ..expressions import Literal
+from parsimonious import NodeVisitor
+from parsimonious.expressions import Literal
 import sys
 sys.path.append("/home/ashley/repos/github/click")
 sys.path.append("/home/ashley/repos/github/parglare")
@@ -113,7 +113,7 @@ class ParglareConverter(NodeVisitor):
         return [node.text.strip()]
 
     def visit_regex(self, node, items):
-        return ["/%s/"%node.text.strip()[2:-1]]
+        return ["/%s/"%node.children[1].text[1:-1]]
 
     def visit_literal(self, node, items):
         return [node.text.strip()]

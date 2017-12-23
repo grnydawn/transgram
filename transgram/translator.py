@@ -1,10 +1,14 @@
 ##-*- coding: utf-8 -*-
 #from __future__ import absolute_import, division, print_function, unicode_literals
+
+import sys
+sys.path.append("/home/ashley/repos/github/parsimonious")
+sys.path.append("/home/ashley/repos/github/greenery")
+
 import itertools, re, functools, types, math, random
 from collections import OrderedDict
-from .grammar import Grammar
-from .nodes import NodeVisitor
-from .lego import parse as lego_parse, pattern
+from parsimonious import Grammar, NodeVisitor
+from greenery.lego import parse as lego_parse, pattern
 from .hint import Hint
 #from .parglare import ParglareConversion
 from .converter import ParglareConverter, generate_parglare_parser
@@ -614,6 +618,7 @@ def translate(custom_grammar):
     parglare_converter.visit(grammar_tree)
     parglare_grammar = parglare_converter.grammar()
     #print(parglare_grammar)
+    #import pdb; pdb.set_trace()
     parser = generate_parglare_parser(parglare_grammar)
     maxcases = 100
     for idx, s in enumerate(Sampler().visit(grammar_tree)):

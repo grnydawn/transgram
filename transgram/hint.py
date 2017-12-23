@@ -1,8 +1,7 @@
 ##-*- coding: utf-8 -*-
 #from __future__ import absolute_import, division, print_function, unicode_literals
 
-from .grammar import Grammar
-from .nodes import NodeVisitor
+from parsimonious import Grammar, NodeVisitor
 
 #NOTE: all value should be evaluated first including function
 
