@@ -8,6 +8,7 @@ sys.path.append("/home/ashley/repos/github/greenery")
 import itertools, re, functools, types, math, random
 from collections import OrderedDict
 from parsimonious import Grammar, NodeVisitor
+from parsimonious.nodes import Node
 from greenery.lego import parse as lego_parse, pattern
 from .hint import Hint
 #from .parglare import ParglareConversion
@@ -115,6 +116,30 @@ grammar_notation = (r'''
 grammar_syntax = Grammar(grammar_notation)
 
 DEBUG = False
+
+###### normalizer #####
+
+class Normalizer(NodeVisitor):
+
+    def __init__(self):
+        self.rules = OrderedDict()
+
+    def generic_visit(self, node, items):
+        if node.expr.name and node.expr.name[0].isupper():
+            return node.text
+        else:
+            return ''.join(items)
+
+    def visit_parenthesized(self, node, items):
+        name = "_ref_%d_"%len(self.rules)
+        self.rules[name] = items[1]
+        return name + items[2][1:]
+
+    def visit_rules(self, node, items):
+        for name, rule in self.rules.items():
+            items.append("%s : %s\n"%(name, rule))
+        #print("BB", ''.join(items))
+        return grammar_syntax.parse(''.join(items))
 
 ###### internal classes #####
 
@@ -614,14 +639,15 @@ def showtrees(L, indent=""):
 
 def translate(custom_grammar):
     grammar_tree = grammar_syntax.parse(custom_grammar)
+    grammar_normalized_tree = Normalizer().visit(grammar_tree)
     parglare_converter = ParglareConverter()
-    parglare_converter.visit(grammar_tree)
+    parglare_converter.visit(grammar_normalized_tree)
     parglare_grammar = parglare_converter.grammar()
-    #print(parglare_grammar)
-    #import pdb; pdb.set_trace()
+    print(parglare_grammar)
+    import pdb; pdb.set_trace()
     parser = generate_parglare_parser(parglare_grammar)
     maxcases = 100
-    for idx, s in enumerate(Sampler().visit(grammar_tree)):
+    for idx, s in enumerate(Sampler().visit(grammar_normalized_tree)):
         if idx >= maxcases:
             break
         text = ''.join(s)

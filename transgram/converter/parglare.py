@@ -115,8 +115,18 @@ class ParglareConverter(NodeVisitor):
     def visit_regex(self, node, items):
         return ["/%s/"%node.children[1].text[1:-1]]
 
-    def visit_literal(self, node, items):
+    #literal         = (SPACELESS_LITERAL / BINARY_LITERAL / OCTAL_LITERAL / HEX_LITERAL) _
+    def visit_SPACELESS_LITERAL(self, node, items):
         return [node.text.strip()]
+
+    def visit_BINARY_LITERAL(self, node, items):
+        raise NotImplementedError("Binary literal is not supported yet: '%s'."%node.text)
+
+    def visit_OCTAL_LITERAL(self, node, items):
+        raise NotImplementedError("Octal literal is not supported yet: '%s'."%node.text)
+
+    def visit_HEX_LITERAL(self, node, items):
+        raise NotImplementedError("Hex literal is not supported yet: '%s'."%node.text)
 
 def generate_parglare_parser(grammar):
     g = Grammar.from_string(grammar)
