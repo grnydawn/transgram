@@ -138,7 +138,7 @@ class Normalizer(NodeVisitor):
     def visit_rules(self, node, items):
         for name, rule in self.rules.items():
             items.append("%s : %s\n"%(name, rule))
-        #print("BB", ''.join(items))
+        print("BB", ''.join(items))
         return grammar_syntax.parse(''.join(items))
 
 ###### internal classes #####

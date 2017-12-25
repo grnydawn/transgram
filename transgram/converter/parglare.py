@@ -10,6 +10,8 @@ sys.path.append("/home/ashley/repos/github/parglare")
 
 from parglare import Grammar, GLRParser, Parser
 
+# NOTE: may accept only double quote for literals
+
 # TODO1: debugging with samples having parentheses
 # TODO2: regex instance variable ~label. Two step parser generation to decide ~label
 # TODO3: Context class having rule_stack and regex instance variable resolutions
@@ -109,13 +111,27 @@ class ParglareConverter(NodeVisitor):
             direct = "right, "
         return items[1]+items[2]+[" {%s__priority__}"%direct]
 
+    #def visit_term(self, node, items):
+    #    l = []
+    #    for item in items:
+    #        l.extend(item)
+    #    return l
+
     def visit_label(self, node, items):
         return [node.text.strip()]
 
     def visit_regex(self, node, items):
         return ["/%s/"%node.children[1].text[1:-1]]
 
-    #literal         = (SPACELESS_LITERAL / BINARY_LITERAL / OCTAL_LITERAL / HEX_LITERAL) _
+    def visit_quantified(self, node, items):
+        l = []
+        for item in items:
+            l.extend(item)
+        return [''.join(l)]
+
+    def visit_quantifier(self, node, items):
+        return [node.text.strip()]
+
     def visit_SPACELESS_LITERAL(self, node, items):
         return [node.text.strip()]
 
