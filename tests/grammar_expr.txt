@@ -1,6 +1,7 @@
+#hint: sample maxloops(2), maxrepeats(2), randomize(0)
 Expr    : Sum
-Sum     : Product (('+' / '-') Product)*
-Product : Value (('*' / '/') Value)*
-Value   : ('(' Expr ')') / ~"(1)" 
+Sum     : Product (('+' | '-') Product)*
+Product : Value (('*' | '/') Value)*
+Value   : ('(' Expr ')') | ~"(1)" 
 #Value   : ~"(1|2)" / ('(' Expr ')')
 #Value   : ~"[0-9]{1}" / ('(' Expr ')')

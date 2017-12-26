@@ -29,19 +29,44 @@ class ParglareConverter(NodeVisitor):
 
     def __init__(self):
         self.rules = OrderedDict()
-    
+
     def grammar(self):
         l = []
         for name, rule in self.rules.items():
-            l.append("%s :\n%s"%(name, self.TAB))
+            newrule = "%s : "%name
+            r = []
             for term in rule:
                 if term == "|":
-                    l.append(" \n%s%s"%(self.TAB, term))
+                    if r:
+                        r.insert(0, newrule)
+                        r.append(";\n")
+                        l.extend(r)
+                        r = []
                 elif term == ";":
-                    l.append(" %s\n"%term)
-                else:
-                    l.append(" %s"%term)
+                    if r:
+                        r.insert(0, newrule)
+                        r.append(";\n")
+                        l.extend(r)
+                        r = []
+                elif term:
+                    r.append(" %s"%term)
+        if r:
+            r.insert(0, newrule)
+            l.extend(r)
         return ''.join(l)
+   
+#    def grammar(self):
+#        l = []
+#        for name, rule in self.rules.items():
+#            l.append("%s :\n%s"%(name, self.TAB))
+#            for term in rule:
+#                if term == "|":
+#                    l.append(" \n%s%s"%(self.TAB, term))
+#                elif term == ";":
+#                    l.append(" %s\n"%term)
+#                else:
+#                    l.append(" %s"%term)
+#        return ''.join(l)
 
     def generic_visit(self, node, items):
         if isinstance(node.expr, Literal):
