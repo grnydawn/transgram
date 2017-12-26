@@ -655,8 +655,8 @@ def translate(custom_grammar):
     parglare_converter = ParglareConverter()
     parglare_converter.visit(grammar_normalized_tree)
     parglare_grammar = parglare_converter.grammar()
-    print(parglare_grammar)
-    import pdb; pdb.set_trace()
+    #print(parglare_grammar)
+    #import pdb; pdb.set_trace()
     parser = generate_parglare_parser(parglare_grammar)
     maxcases = 100
     for idx, s in enumerate(Sampler().visit(grammar_normalized_tree)):

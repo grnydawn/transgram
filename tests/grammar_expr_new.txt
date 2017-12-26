@@ -1,6 +1,6 @@
-#hint : sample maxloops(4), maxrepeats(2), randomize(4)
+#hint : sample maxloops(4), maxrepeats(1), randomize(0)
 E   : (=>'(' E ')')
-    / (E '^' E<=)
+    / (=>E '^' E)
     / (=>E '*' E) | (=>E '/' E)
     / (=>E '+' E) | (=>E '-' E)
     / number

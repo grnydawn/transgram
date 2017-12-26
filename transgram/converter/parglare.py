@@ -10,7 +10,7 @@ sys.path.append("/home/ashley/repos/github/parglare")
 
 from parglare import Grammar, GLRParser, Parser
 
-# NOTE: may accept only double quote for literals
+# NOTE: left associative is default??
 
 # TODO1: debugging with samples having parentheses
 # TODO2: regex instance variable ~label. Two step parser generation to decide ~label
@@ -85,6 +85,8 @@ class ParglareConverter(NodeVisitor):
             if term == "/":
                 P += 10
                 term = "|"
+                BAR = True
+            elif term == "|":
                 BAR = True
             elif "__priority__" in term:
                 term = term.replace("__priority__", "%d"%P)
