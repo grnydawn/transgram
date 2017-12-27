@@ -1,7 +1,7 @@
-#hint : sample maxloops(5), maxrepeats(2), randomize(2)
+#hint : sample maxrecursion(5), maxrepeat(2), randomize(2), maxsample(50)
 E   :
     (=>E '*' E)
     / (=>E '+' E) 
     / number
-number: ~"\d+" {string: ~"(1|2)"}
+number: ~"\d+" {string: ~"(1)"}
 

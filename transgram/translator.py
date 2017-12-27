@@ -468,25 +468,32 @@ class Sampler(NodeVisitor):
     def visit_rules(self, node, items):
 
         # hint processing
-        sample_kwargs = {'maxloops':5, 'maxrepeats':2, 'randomize':1}
+        sample_kwargs = {'maxrecursion':5, 'maxrepeat':2, 'randomize':1,
+            'maxsample':100}
         rules = [r for r in self.rules.items()]
         pairs = zip(rules[:-1], rules[1:])
         for (pname, prule), (nname, nrule) in pairs:
             if isinstance(prule, Hint):
                 hints = prule.collect(modes="sample")
-                if 'maxrepeats' in hints:
-                    sample_kwargs['maxrepeats'] = hints['maxrepeats']
-                if 'maxloops' in hints:
-                    sample_kwargs['maxloops'] = hints['maxloops']
+                if 'maxrepeat' in hints:
+                    sample_kwargs['maxrepeat'] = hints['maxrepeat']
+                if 'maxrecursion' in hints:
+                    sample_kwargs['maxrecursion'] = hints['maxrecursion']
                 if 'randomize' in hints:
                     sample_kwargs['randomize'] = hints['randomize']
+                if 'maxsample' in hints:
+                    sample_kwargs['maxsample'] = hints['maxsample']
             elif isinstance(nrule, Hint): #and the same line, then inline hint
                 import pdb; pdb.set_trace()
                 pass
 
         start_rule = items[1][0][0]
+        nsamples = 0
         for x in Generator(self.rules, start_rule, **sample_kwargs).generate():
             for y in itertools.product(*x):
+                nsamples += 1
+                if nsamples > sample_kwargs['maxsample']:
+                    return
                 yield ''.join(y)
 
 
@@ -494,8 +501,8 @@ class Generator(object):
     def __init__(self, rules, start_rule, **kwargs):
         self.rules = dict(rules)
         self.start_rule = start_rule
-        self.maxloops = kwargs.pop('maxloops')
-        self.maxrepeats = kwargs.pop('maxrepeats')
+        self.maxrecursion = kwargs.pop('maxrecursion')
+        self.maxrepeat = kwargs.pop('maxrepeat')
         self.randomize = kwargs.pop('randomize')
 
     def rule_copy(self, rule):
@@ -511,7 +518,7 @@ class Generator(object):
         else:
             random.seed(len(self.start_rule))
 
-        start_rules = [[({self.start_rule:self.maxloops}, r) for r in self.rules[self.start_rule]]]
+        start_rules = [[({self.start_rule:self.maxrecursion}, r) for r in self.rules[self.start_rule]]]
         while start_rules:
             if DEBUG: print("\nRules", start_rules)
 
@@ -531,7 +538,7 @@ class Generator(object):
                     if item.name in path:
                         path[item.name] -= 1
                     else:
-                        path[item.name] = self.maxloops
+                        path[item.name] = self.maxrecursion
                     if path[item.name] > 0:
                         start_rule_stack.extend([(path,i) for i in self.rules[item.name]])
                     else:
@@ -592,14 +599,14 @@ class Generator(object):
                 elif isinstance(item, ZeroOrMore):
                     if DEBUG: print("\nZeroOrMore", item)
                     buf = []
-                    loc = random.randint(0, self.maxrepeats)
+                    loc = random.randint(0, self.maxrepeat)
                     empty = (dict(path), Empty())
                     bucket_copy_empty = [(x,y.copy()) for x,y in reversed(bucket)]
                     start_rule_stack_copy = self.rule_copy(start_rule_stack)
                     empty_stack = start_rule_stack_copy+[empty]+bucket_copy_empty
                     if self.randomize == 0 or loc == 0:
                         start_rules.append(empty_stack)
-                    for idx in range(self.maxrepeats):
+                    for idx in range(self.maxrepeat):
                         buf.extend([(dict(path), i) for i in item.item])
                         bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                         start_rule_stack_copy = self.rule_copy(start_rule_stack)
@@ -610,7 +617,7 @@ class Generator(object):
                 elif isinstance(item, OneOrMore):
                     if DEBUG: print("\nOneOrMore", item)
                     buf = [(dict(path), i) for i in item.item]
-                    for _ in range(self.maxrepeats):
+                    for _ in range(self.maxrepeat):
                         buf += [(dict(path), i) for i in item.item]
                         bucket_copy = [(x,y.copy()) for x,y in reversed(bucket)]
                         start_rule_stack_copy = self.rule_copy(start_rule_stack)
@@ -658,10 +665,11 @@ def translate(custom_grammar):
     #print(parglare_grammar)
     #import pdb; pdb.set_trace()
     parser = generate_parglare_parser(parglare_grammar)
-    maxcases = 100
+    #maxcases = 100
+    ntree = 1
     for idx, s in enumerate(Sampler().visit(grammar_normalized_tree)):
-        if idx >= maxcases:
-            break
+        #if idx >= maxcases:
+        #    break
         text = ''.join(s)
         print("INPUT: %s"%text)
         parsed = parser.parse(text)
@@ -675,8 +683,8 @@ def translate(custom_grammar):
             #showtrees(parsed)
             break
         #import pdb; pdb.set_trace()
-    if idx == maxcases:
-        print("Passed %d cases"%idx)
+    if ntree == 1:
+        print("Passed %d cases"%(idx+1))
 
     #parglare_parsers = generate_parglare_parsers(parglare_grammar)
     #if multiple parsers, then take one sample from generations

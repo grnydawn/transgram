@@ -50,7 +50,8 @@ class ParglareConverter(NodeVisitor):
                         r.append(";\n")
                         l.extend(r)
                         r = []
-                elif len(term)>2 and term[0]=="/" and term[-1]=="/":
+                elif "|" in rule and len(term)>2 and \
+                    term[0]=="/" and term[-1]=="/":
                     re_name = "_parglare_re_%d_"%len(re)
                     r.append(" %s"%re_name)
                     re[re_name] = "%s ;\n"%term
