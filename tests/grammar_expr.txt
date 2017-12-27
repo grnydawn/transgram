@@ -1,4 +1,4 @@
-#hint: sample maxloops(2), maxrepeats(2), randomize(0)
+#hint: sample maxloops(2), maxrepeats(2), randomize(4)
 Expr    : Sum
 Sum     : Product (('+' | '-') Product)*
 Product : Value (('*' | '/') Value)*

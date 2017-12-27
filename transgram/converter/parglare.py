@@ -31,11 +31,13 @@ class ParglareConverter(NodeVisitor):
         self.rules = OrderedDict()
 
     def grammar(self):
+        re = {}
         l = []
         for name, rule in self.rules.items():
             newrule = "%s : "%name
             r = []
             for term in rule:
+                #if term == "EMPTY": import pdb; pdb.set_trace()
                 if term == "|":
                     if r:
                         r.insert(0, newrule)
@@ -48,25 +50,18 @@ class ParglareConverter(NodeVisitor):
                         r.append(";\n")
                         l.extend(r)
                         r = []
+                elif len(term)>2 and term[0]=="/" and term[-1]=="/":
+                    re_name = "_parglare_re_%d_"%len(re)
+                    r.append(" %s"%re_name)
+                    re[re_name] = "%s ;\n"%term
                 elif term:
                     r.append(" %s"%term)
         if r:
             r.insert(0, newrule)
             l.extend(r)
+        for re_name, re_item in re.items():
+            l.append("%s : %s"%(re_name, re_item))
         return ''.join(l)
-   
-#    def grammar(self):
-#        l = []
-#        for name, rule in self.rules.items():
-#            l.append("%s :\n%s"%(name, self.TAB))
-#            for term in rule:
-#                if term == "|":
-#                    l.append(" \n%s%s"%(self.TAB, term))
-#                elif term == ";":
-#                    l.append(" %s\n"%term)
-#                else:
-#                    l.append(" %s"%term)
-#        return ''.join(l)
 
     def generic_visit(self, node, items):
         if isinstance(node.expr, Literal):
@@ -92,8 +87,8 @@ class ParglareConverter(NodeVisitor):
                 term = term.replace("__priority__", "%d"%P)
                 BAR = False
             elif BAR:
-                if len(term)<2 or term[0]!="/" and term[-1]!="/":
-                    terms.append(" {%d}"%P)
+                #if len(term)<2 or term[0]!="/" and term[-1]!="/":
+                terms.append(" {%d}"%P)
                 BAR = False
             terms.append(term)
         self.rules[items[0][0]] = [t for t in reversed(terms)]

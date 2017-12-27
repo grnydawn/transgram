@@ -671,7 +671,7 @@ def translate(custom_grammar):
             print("        %s"%str(p))
         print("")
         if ntree > 1:
-            print('!!!!! Warning: ambiguous grammar: "%d" parse trees !!!!!'%ntree)
+            print('!!!!! Warning: ambiguous grammar: %d parse trees !!!!!'%ntree)
             #showtrees(parsed)
             break
         #import pdb; pdb.set_trace()
